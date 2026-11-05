@@ -1,0 +1,2391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SyncStudy — Tus trabajos grupales, bajo control</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              navy: '#121F38',
+              dark: '#0B1323',
+              card: '#1B2A4A',
+              accent: '#10B981',       /* Verde éxito / equidad (logo 'S') */
+              accentHover: '#059669',
+              accentLight: '#D1FAE5',
+              blueCalendar: '#2563EB',
+              muted: '#64748B',
+              border: '#E2E8F0',
+              surface: '#F8FAFC'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom polished scrollbars & animations */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #f1f5f9; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+    @keyframes pulseSoft {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.05); opacity: 0.85; }
+    }
+    html, body {
+      overflow-x: hidden !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      position: relative;
+    }
+
+    /* Modal Backdrop - Perfectly centered horizontally and vertically on all screens */
+    .modal-backdrop {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100% !important;
+      height: 100% !important;
+      background-color: rgba(11, 19, 35, 0.75) !important;
+      backdrop-filter: blur(6px) !important;
+      -webkit-backdrop-filter: blur(6px) !important;
+      z-index: 60 !important;
+      display: flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 1rem !important;
+      overflow-y: auto !important;
+      box-sizing: border-box !important;
+    }
+    .modal-backdrop.hidden {
+      display: none !important;
+    }
+
+    /* Mobile Bottom Navigation - Pinned firmly to the bottom */
+    #mobile-bottom-nav {
+      position: fixed !important;
+      bottom: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      width: 100% !important;
+      z-index: 45 !important;
+    }
+
+    /* Interactive calendar grid cell */
+    .grid-slot {
+      transition: all 0.15s ease;
+      user-select: none;
+    }
+    .grid-slot:hover {
+      transform: scale(0.97);
+    }
+    .grid-slot.busy {
+      background-color: #F1F5F9;
+      border-color: #E2E8F0;
+      color: #64748B;
+    }
+    .grid-slot.partial {
+      background-color: #FEF3C7;
+      border-color: #FCD34D;
+      color: #92400E;
+    }
+    .grid-slot.free {
+      background-color: #ECFDF5;
+      border-color: #A7F3D0;
+      color: #065F46;
+    }
+  </style>
+</head>
+<body class="bg-brand-surface text-slate-800 font-sans min-h-screen flex flex-col antialiased selection:bg-emerald-500 selection:text-white">
+
+  <!-- ========================================== -->
+  <!-- MAIN APP CONTAINER (100% RESPONSIVE) -->
+  <!-- ========================================== -->
+  <div class="flex-1 flex flex-col w-full">
+
+    <!-- APP HEADER -->
+    <header class="bg-brand-navy text-white sticky top-0 z-40 border-b border-slate-700/60 shadow-md">
+      <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+        
+        <!-- ROW 1: BRAND LOGO (LEFT) + DESKTOP PROJECT SELECTOR + ACTIONS (RIGHT) -->
+        <div class="flex items-center justify-between h-14 sm:h-16 gap-2">
+          
+          <!-- BRAND LOGO & TITLE -->
+          <div class="flex items-center gap-2 sm:gap-3 cursor-pointer select-none flex-shrink-0" onclick="switchTab('dashboard')">
+            <!-- Exact SyncStudy Logo SVG from document page 51 -->
+            <div class="relative w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0 drop-shadow">
+              <svg viewBox="0 0 100 100" class="w-full h-full" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Calendar Body (Navy) -->
+                <rect x="12" y="18" width="76" height="74" rx="14" fill="#162238" stroke="#2A3D63" stroke-width="2.5"/>
+                <!-- Top Header Band -->
+                <path d="M12 32C12 24.268 18.268 18 26 18H74C81.732 18 88 24.268 88 32V36H12V32Z" fill="#0D182A"/>
+                <!-- Ring Binders -->
+                <rect x="26" y="8" width="8" height="18" rx="4" fill="#64748B" stroke="#94A3B8" stroke-width="1.5"/>
+                <rect x="66" y="8" width="8" height="18" rx="4" fill="#64748B" stroke="#94A3B8" stroke-width="1.5"/>
+                <circle cx="30" cy="24" r="2.5" fill="#0D182A"/>
+                <circle cx="70" cy="24" r="2.5" fill="#0D182A"/>
+                <!-- Calendar Grid (White / Light slate squares) -->
+                <g fill="#E2E8F0" opacity="0.85">
+                  <rect x="22" y="42" width="11" height="9" rx="2"/>
+                  <rect x="37" y="42" width="11" height="9" rx="2"/>
+                  <rect x="52" y="42" width="11" height="9" rx="2"/>
+                  <rect x="67" y="42" width="11" height="9" rx="2"/>
+
+                  <rect x="22" y="55" width="11" height="9" rx="2"/>
+                  <rect x="37" y="55" width="11" height="9" rx="2"/>
+                  <rect x="52" y="55" width="11" height="9" rx="2"/>
+                  <rect x="67" y="55" width="11" height="9" rx="2"/>
+
+                  <rect x="22" y="68" width="11" height="9" rx="2"/>
+                  <rect x="37" y="68" width="11" height="9" rx="2"/>
+                  <rect x="52" y="68" width="11" height="9" rx="2"/>
+                  <rect x="67" y="68" width="11" height="9" rx="2"/>
+                </g>
+                <!-- Central Vibrant Faceted Emerald "S" -->
+                <path d="M68 44H42C38 44 34 47 34 51C34 55 38 58 42 58H58C63 58 67 61 67 66C67 71 63 74 58 74H32" 
+                      stroke="#10B981" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M68 44H42C38 44 34 47 34 51C34 55 38 58 42 58H58C63 58 67 61 67 66C67 71 63 74 58 74H32" 
+                      stroke="#34D399" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" opacity="0.7"/>
+              </svg>
+            </div>
+            
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="text-base sm:text-xl font-bold tracking-tight text-white">Sync<span class="text-emerald-400">Study</span></span>
+                <span class="text-[9px] sm:text-[10px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/40 font-mono">MVP</span>
+              </div>
+              <p class="text-[10px] text-slate-400 leading-none hidden sm:block">Tus trabajos grupales, bajo control</p>
+            </div>
+          </div>
+
+          <!-- PROJECT PICKER SELECTOR (DESKTOP ONLY: >= 768px) -->
+          <div class="hidden md:flex items-center gap-2 bg-slate-800/80 hover:bg-slate-800 px-3 py-1.5 rounded-xl border border-slate-700 transition cursor-pointer" onclick="openProjectModal()" title="Haga clic para cambiar de materia/proyecto">
+            <div class="w-2.5 h-2.5 rounded-full bg-emerald-400 pulse-soft"></div>
+            <div class="text-left">
+              <div class="text-[10px] text-slate-400 leading-tight">Proyecto activo:</div>
+              <div class="text-xs font-semibold text-slate-100 flex items-center gap-1">
+                <span id="active-project-name" class="truncate max-w-[200px]">TPO Tecnología e Innovación</span>
+                <svg class="w-3.5 h-3.5 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTIONS: PITCH DECK & MODO OCUPADO (ALWAYS VISIBLE!) & USER PROFILE (ALWAYS VISIBLE!) -->
+          <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+            <!-- BOTÓN PRESENTACIÓN INVERSORES (DESKTOP) -->
+            <a href="pitch_deck.html" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl font-medium text-xs text-slate-200 bg-slate-800 hover:bg-slate-700 hover:text-white border border-slate-700 hover:border-emerald-500/50 shadow-sm transition active:scale-95" title="Ver Presentación Oficial para Inversores">
+              <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+              <span>Pitch Deck</span>
+            </a>
+
+            <!-- BOTÓN MODO OCUPADO (ALWAYS VISIBLE ON BOTH MOBILE AND DESKTOP!) -->
+            <button id="btn-modo-ocupado" onclick="openModoOcupadoModal()" class="relative flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl font-medium text-xs text-white bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 shadow-sm transition active:scale-95 group flex-shrink-0 cursor-pointer">
+              <span id="modo-ocupado-dot" class="w-2 h-2 rounded-full bg-white group-hover:scale-125 transition flex-shrink-0"></span>
+              <span id="modo-ocupado-text" class="font-bold whitespace-nowrap"><span class="hidden sm:inline">Modo </span>Ocupado</span>
+            </button>
+
+            <!-- FOTO / AVATAR DE PERFIL (ALWAYS VISIBLE ON BOTH MOBILE AND DESKTOP!) -->
+            <div class="flex items-center gap-1.5 sm:gap-2 pl-1 sm:pl-2 border-l border-slate-700/60 flex-shrink-0 cursor-pointer" onclick="switchTab('dashboard')" title="Facundo Gagliardi (Vos)">
+              <div class="relative flex-shrink-0">
+                <div class="w-8 h-8 rounded-full bg-emerald-700 border-2 border-emerald-400 flex items-center justify-center text-white font-black text-xs shadow-sm">
+                  FG
+                </div>
+                <!-- Online calendar sync indicator dot -->
+                <span class="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-brand-navy"></span>
+              </div>
+              <div class="hidden xl:block text-left">
+                <div class="text-xs font-semibold text-slate-100 leading-tight">Facundo G.</div>
+                <div class="text-[10px] text-emerald-400 flex items-center gap-1">
+                  G-Calendar OK
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ROW 2 FOR MOBILE ONLY (< 768px): DEDICATED FULL-WIDTH PROJECT SWITCHER BAR -->
+        <div class="md:hidden pb-2.5 pt-0.5">
+          <button onclick="openProjectModal()" class="w-full flex items-center justify-between bg-slate-800/90 hover:bg-slate-800 active:bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-700/80 text-xs text-slate-200 transition shadow-inner">
+            <div class="flex items-center gap-2 truncate min-w-0">
+              <div class="w-2 h-2 rounded-full bg-emerald-400 pulse-soft flex-shrink-0"></div>
+              <span class="text-slate-400 text-[11px] flex-shrink-0">Materia:</span>
+              <span id="active-project-name-mobile" class="font-bold text-white truncate text-xs">TPO Tecnología e Innovación</span>
+            </div>
+            <div class="flex items-center gap-1 text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/20 flex-shrink-0 ml-2">
+              <span>Cambiar</span>
+              <svg class="w-3 h-3 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            </div>
+          </button>
+        </div>
+
+      </div>
+
+      <!-- DESKTOP NAV TABS -->
+      <nav class="hidden md:flex max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 border-t border-slate-800">
+        <div class="flex space-x-1 py-1.5 overflow-x-auto text-xs font-medium">
+          <button onclick="switchTab('dashboard')" id="nav-btn-dashboard" class="tab-btn px-3 py-1.5 rounded-lg text-emerald-400 bg-slate-800 flex items-center gap-2 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+            <span>Dashboard 5-Seg</span>
+          </button>
+          
+          <button onclick="switchTab('calendar')" id="nav-btn-calendar" class="tab-btn px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            <span>Cruce de Horarios (Smart Slots)</span>
+            <span class="bg-emerald-500/20 text-emerald-400 text-[10px] px-1.5 py-0.2 rounded-full font-bold" id="badge-free-slots">3 Libres</span>
+          </button>
+
+          <button onclick="switchTab('tasks')" id="nav-btn-tasks" class="tab-btn px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+            <span>Micro-entregas & Dependencias</span>
+            <span id="badge-pending-tasks" class="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.2 rounded-full font-bold">4 Pendientes</span>
+          </button>
+
+          <button onclick="switchTab('contributions')" id="nav-btn-contributions" class="tab-btn px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            <span>Pruebas de Contribución (Anti Free-Rider)</span>
+          </button>
+
+          <button onclick="switchTab('availability')" id="nav-btn-availability" class="tab-btn px-3 py-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-slate-800/60 flex items-center gap-2 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span>Mi Disponibilidad (Fallback Manual)</span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- MAIN SCROLLABLE BODY CONTENT -->
+    <main class="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto w-full pb-28 md:pb-8">
+
+      <!-- ========================================== -->
+      <!-- TAB 1: DASHBOARD (Vista de 5 segundos) -->
+      <!-- ========================================== -->
+      <section id="tab-dashboard" class="space-y-6">
+        
+        <!-- PROJECT SUMMARY HEADER CARD -->
+        <div class="bg-gradient-to-r from-brand-navy via-[#1E2E4E] to-brand-navy rounded-2xl p-4 sm:p-6 text-white shadow-sm border border-slate-700/60 relative overflow-hidden">
+          <div class="absolute -right-8 -bottom-8 w-48 h-48 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
+
+          <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
+            <!-- Project title & metadata -->
+            <div class="space-y-1">
+              <div class="flex flex-wrap items-center gap-2">
+                <span id="proj-badge-institution" class="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  UADE · FAIN
+                </span>
+                <span id="proj-professor" class="text-xs text-slate-300">Turno: Jueves Mañana · Prof. Juan Carlos Madeo</span>
+              </div>
+              
+              <h1 id="proj-title" class="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                TPO Tecnología e Innovación
+              </h1>
+              
+              <div class="text-xs text-slate-300 flex flex-wrap items-center gap-x-2 gap-y-1 pt-0.5">
+                <span id="proj-member-count" class="flex items-center gap-1 font-medium">👥 7 Integrantes sincronizados</span>
+                <span>•</span>
+                <span class="text-emerald-300 font-semibold" id="proj-deadline-string">📅 Entrega: Jueves 19 de Noviembre (Faltan 2 semanas)</span>
+              </div>
+            </div>
+
+            <!-- COUNTDOWN TIMER WIDGET (FULLY RESPONSIVE & NO WRAPPING) -->
+            <div class="bg-slate-900/90 backdrop-blur border border-slate-700/80 p-3 sm:p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-inner self-stretch lg:self-auto">
+              
+              <div class="text-center sm:text-left">
+                <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Cuenta Regresiva</div>
+                
+                <!-- 4 Digits Boxes (Days, Hours, Mins, Secs) -->
+                <div class="flex items-center gap-1 sm:gap-1.5 mt-1">
+                  <div class="bg-slate-800/90 rounded-lg px-2 py-1 border border-slate-700 text-center min-w-[42px] sm:min-w-[48px]">
+                    <div class="text-sm sm:text-base font-black font-mono text-emerald-400" id="cd-days">14</div>
+                    <div class="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Días</div>
+                  </div>
+                  <span class="text-slate-600 font-bold text-xs">:</span>
+                  <div class="bg-slate-800/90 rounded-lg px-2 py-1 border border-slate-700 text-center min-w-[42px] sm:min-w-[48px]">
+                    <div class="text-sm sm:text-base font-black font-mono text-emerald-400" id="cd-hours">00</div>
+                    <div class="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Hs</div>
+                  </div>
+                  <span class="text-slate-600 font-bold text-xs">:</span>
+                  <div class="bg-slate-800/90 rounded-lg px-2 py-1 border border-slate-700 text-center min-w-[42px] sm:min-w-[48px]">
+                    <div class="text-sm sm:text-base font-black font-mono text-emerald-400" id="cd-mins">00</div>
+                    <div class="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Min</div>
+                  </div>
+                  <span class="text-slate-600 font-bold text-xs">:</span>
+                  <div class="bg-slate-800/90 rounded-lg px-2 py-1 border border-slate-700 text-center min-w-[42px] sm:min-w-[48px]">
+                    <div class="text-sm sm:text-base font-black font-mono text-emerald-400" id="cd-secs">00</div>
+                    <div class="text-[8px] uppercase tracking-wider text-slate-400 font-bold">Seg</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Status badge -->
+              <div class="flex sm:flex-col items-center justify-center gap-1 sm:border-l sm:border-slate-700/80 sm:pl-3 w-full sm:w-auto border-t border-slate-800 sm:border-t-0 pt-2 sm:pt-0">
+                <span class="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Estado</span>
+                <span id="proj-status-badge" class="px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 whitespace-nowrap">
+                  <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> A tiempo
+                </span>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- PROGRESS BAR INTERACTIVA -->
+          <div class="mt-5 pt-4 border-t border-slate-700/60">
+            <div class="flex items-center justify-between text-xs mb-1.5">
+              <span class="font-medium text-slate-200">Avance Total de Micro-entregas</span>
+              <span class="font-bold text-emerald-400" id="progress-percentage-label">65% completado</span>
+            </div>
+            <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5 border border-slate-700">
+              <div id="main-progress-bar" class="h-full bg-gradient-to-r from-emerald-500 to-teal-400 rounded-full transition-all duration-700 shadow" style="width: 65%;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3-PILLARS QUICK STATS GRID -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <!-- 1. SEMÁFORO DE RIESGO PREDICTIVO -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-500">Detección de Riesgo</div>
+              <span class="text-lg">🚦</span>
+            </div>
+
+            <div class="my-3">
+              <div class="flex items-center gap-3">
+                <div id="traffic-light-indicator" class="flex gap-1.5 p-1.5 bg-slate-900 rounded-lg">
+                  <span id="light-red" class="w-3.5 h-3.5 rounded-full bg-rose-500/20 border border-rose-500/30"></span>
+                  <span id="light-yellow" class="w-3.5 h-3.5 rounded-full bg-amber-400 shadow-lg shadow-amber-400/50"></span>
+                  <span id="light-green" class="w-3.5 h-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/30"></span>
+                </div>
+                <div>
+                  <h3 id="risk-status-title" class="font-bold text-amber-700 text-sm">Riesgo Moderado</h3>
+                  <p class="text-[11px] text-slate-500">Algoritmo predictivo SyncStudy</p>
+                </div>
+              </div>
+              <p id="risk-status-desc" class="text-xs text-slate-600 mt-2 bg-amber-50 p-2.5 rounded-xl border border-amber-200/60">
+                ⚠️ <b>Alerta:</b> La micro-entrega <i>"Modelo Financiero"</i> está demorada y bloquea a <i>"Prototipo MVP"</i>.
+              </p>
+            </div>
+
+            <button onclick="switchTab('tasks')" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center justify-between pt-2 border-t border-slate-100">
+              <span>Resolver dependencias</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+
+          <!-- 2. SMART SLOT RECOMENDADO DINÁMICO -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-500">Próxima Reunión Sugerida</div>
+              <span class="text-lg">🗓️</span>
+            </div>
+
+            <div class="my-3">
+              <div class="flex items-center gap-2 text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg w-fit border border-emerald-200">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 100% Grupo Libre (7/7)
+              </div>
+              <div class="text-base font-bold text-slate-900 mt-2" id="dash-suggested-slot-time">
+                Mañana Jueves · 18:00 a 20:00 hs
+              </div>
+              <p class="text-xs text-slate-500 mt-1" id="dash-suggested-slot-desc">
+                Detectado automáticamente cruzando calendarios. Hueco libre posterior al horario de cursada.
+              </p>
+            </div>
+
+            <button onclick="scheduleMeeting('Jueves 18:00 a 20:00 hs')" class="w-full py-1.5 px-3 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5">
+              <svg class="w-3.5 h-3.5 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span>Fijar Reunión Grupal</span>
+            </button>
+          </div>
+
+          <!-- 3. INDICE ANTI FREE-RIDER -->
+          <div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-200 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="text-xs font-bold uppercase tracking-wider text-slate-500">Equidad del Grupo</div>
+              <span class="text-lg">⚖️</span>
+            </div>
+
+            <div class="my-3">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-2xl font-black text-slate-900" id="dash-equity-index">92%</span>
+                <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">Distribución Justa</span>
+              </div>
+              <p class="text-xs text-slate-500" id="dash-equity-desc">
+                Calculado en base a tareas, evidencias subidas y horas reales registradas.
+              </p>
+              <div class="flex -space-x-2 overflow-hidden mt-3" id="dash-avatars-row">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+            <button onclick="switchTab('contributions')" class="text-xs font-semibold text-emerald-600 hover:text-emerald-700 flex items-center justify-between pt-2 border-t border-slate-100">
+              <span>Ver reporte de evidencias</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- 2 COLUMNS: MIS TAREAS PRIORITARIAS & ACTIVIDAD RECIENTE -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- LEFT 2 COLS: MIS TAREAS URGENTES -->
+          <div class="lg:col-span-2 bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h2 class="text-base font-bold text-slate-900">Mis Micro-entregas Asignadas</h2>
+                <p class="text-xs text-slate-500">Tareas que impactan el avance del equipo</p>
+              </div>
+              <button onclick="openNewTaskModal()" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-xl text-xs font-semibold flex items-center gap-1 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>Nueva Tarea</span>
+              </button>
+            </div>
+
+            <!-- TAREAS LIST -->
+            <div class="space-y-2.5" id="dashboard-my-tasks-container">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- RIGHT 1 COL: INTEGRANTES Y ESTADO DE DISPONIBILIDAD -->
+          <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-200">
+            <div class="flex items-center justify-between mb-3">
+              <h2 class="text-base font-bold text-slate-900">Integrantes del Equipo</h2>
+              <span class="text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-lg font-medium" id="team-sync-badge">Sincronizados</span>
+            </div>
+
+            <div class="space-y-3" id="team-members-status-list">
+              <!-- Dynamically rendered team members -->
+            </div>
+
+            <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <span class="text-xs text-slate-500">Código de unión:</span>
+              <span class="font-mono text-xs font-bold text-brand-navy bg-slate-100 px-2.5 py-1 rounded-lg cursor-pointer hover:bg-slate-200 flex items-center gap-1" onclick="copyInviteCode()">
+                SYNC-FAIN-26
+                <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 2: CRUCE DE HORARIOS (SMART SLOT FINDER) -->
+      <!-- ========================================== -->
+      <section id="tab-calendar" class="space-y-6 hidden">
+        <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+          
+          <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+            <div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
+                <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14.5v-9l6 4.5-6 4.5z"/></svg>
+                Google Calendar API v3 · OAuth 2.0
+              </div>
+              <h2 class="text-xl font-bold text-slate-900 mt-2">Búsqueda Automática de Horarios en Común</h2>
+              <p class="text-xs text-slate-500 mt-1 max-w-2xl">
+                SyncStudy cruza la disponibilidad de los integrantes y detecta automáticamente los mejores bloques libres. <b>Privacidad garantizada:</b> la app solo lee "ocupado/libre", sin acceder al título ni detalles de tus citas personales.
+              </p>
+            </div>
+            
+            <button onclick="simulateCalendarRefresh()" class="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition self-start md:self-auto">
+              <svg id="sync-spin-icon" class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.033 8.033 0 01-15.357-2m15.357 2H15"/></svg>
+              <span>Re-sincronizar agendas</span>
+            </button>
+          </div>
+
+          <!-- TOP 3 SUGGESTED SLOTS (DINÁMICOS) -->
+          <div class="mt-6">
+            <h3 class="text-sm font-bold text-slate-800 uppercase tracking-wider mb-3 flex items-center gap-2">
+              <span>🌟 Los 3 mejores horarios encontrados para reunirse:</span>
+            </h3>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="smart-slots-container">
+              <!-- Rendered dynamically by JS -->
+            </div>
+          </div>
+
+          <!-- HEATMAP / GRILLA DE DISPONIBILIDAD GRUPAL (SÓLO 3 ESTADOS: LIBRE, ALGUNOS OCUPADOS, OCUPADO) -->
+          <div class="mt-8">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+              <div>
+                <h3 class="text-sm font-bold text-slate-800">Mapa de Disponibilidad Semanal del Grupo</h3>
+                <p class="text-[11px] text-slate-500">Muestra exclusivamente el estado de disponibilidad del equipo protegiendo la privacidad.</p>
+              </div>
+              <!-- 3 REQUIRED LEGENDS ONLY -->
+              <div class="flex flex-wrap items-center gap-3 text-xs">
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-emerald-100 border border-emerald-400"></span> <b class="text-emerald-800">Todos libres</b></span>
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-amber-100 border border-amber-400"></span> <b class="text-amber-800">Algunos ocupados</b></span>
+                <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded bg-slate-100 border border-slate-300"></span> <b class="text-slate-600">Ocupado</b></span>
+              </div>
+            </div>
+
+            <!-- TABLE GRID -->
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-xs text-center border-collapse">
+                <thead class="bg-slate-50 text-slate-700 border-b border-slate-200">
+                  <tr>
+                    <th class="p-2.5 text-left font-semibold">Horario</th>
+                    <th class="p-2.5 font-semibold">Lunes</th>
+                    <th class="p-2.5 font-semibold">Martes</th>
+                    <th class="p-2.5 font-semibold">Miércoles</th>
+                    <th class="p-2.5 font-semibold bg-emerald-50 text-emerald-900 border-x border-emerald-200">Jueves</th>
+                    <th class="p-2.5 font-semibold">Viernes</th>
+                    <th class="p-2.5 font-semibold">Sábado</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-sans" id="weekly-schedule-body">
+                  <!-- Injected via JS using project's matrix with exact 3 requested states -->
+                </tbody>
+              </table>
+            </div>
+            <p class="text-[11px] text-slate-400 mt-2 text-center">
+              💡 Haz clic en cualquier casilla verde de <b>"Todos libres"</b> para fijar una reunión de trabajo grupal.
+            </p>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 3: MICRO-ENTREGAS Y DEPENDENCIAS -->
+      <!-- ========================================== -->
+      <section id="tab-tasks" class="space-y-6 hidden">
+        <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+          
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold uppercase tracking-wider text-slate-500">División Inteligente</span>
+                <span class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full">Roadmap a Tiempo</span>
+              </div>
+              <h2 class="text-xl font-bold text-slate-900 mt-1">Micro-entregas con Dependencias</h2>
+              <p class="text-xs text-slate-500 mt-0.5">
+                Transformamos el trabajo grande en pequeñas tareas con responsables claros y bloqueos visuales.
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button onclick="openNewTaskModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                <span>+ Agregar Micro-entrega</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- TABS FILTER -->
+          <div class="flex flex-wrap items-center gap-2 mt-4 text-xs">
+            <button onclick="filterTasks('all')" id="filter-all" class="filter-chip px-3 py-1 rounded-full bg-brand-navy text-white font-semibold">Todas</button>
+            <button onclick="filterTasks('pending')" id="filter-pending" class="filter-chip px-3 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">En Proceso / Pendientes</button>
+            <button onclick="filterTasks('mine')" id="filter-mine" class="filter-chip px-3 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">Asignadas a Mí (Facundo)</button>
+            <button onclick="filterTasks('completed')" id="filter-completed" class="filter-chip px-3 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200">Completadas</button>
+          </div>
+
+          <!-- TASK GROUPS BY PHASE -->
+          <div class="mt-6 space-y-6" id="all-tasks-list-container">
+            <!-- Rendered by JS -->
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 4: PRUEBAS DE CONTRIBUCIÓN (ANTI FREE-RIDER) -->
+      <!-- ========================================== -->
+      <section id="tab-contributions" class="space-y-6 hidden">
+        <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+          
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
+            <div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                🛡️ Módulo de Justicia & Equidad
+              </div>
+              <h2 class="text-xl font-bold text-slate-900 mt-2">Pruebas Objetivas de Contribución</h2>
+              <p class="text-xs text-slate-500 mt-1 max-w-2xl">
+                Solución directa al problema del <i>"free-rider"</i>. SyncStudy audita entregas, commits, documentos y micro-tareas para que las notas reflejen el aporte individual real.
+              </p>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+              <button onclick="openUploadEvidenceModal()" class="px-3.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5">
+                <svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                <span>Subir Evidencia / Archivo</span>
+              </button>
+              <button onclick="exportTeacherReport()" class="px-3.5 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5" title="Generar informe para el docente">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                <span>Reporte para el Docente</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- KPI SUMMARY STATS CARDS -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 my-5">
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+              <div class="text-[10px] text-slate-500 uppercase font-semibold">Total Horas</div>
+              <div class="text-xl font-black text-brand-navy mt-0.5" id="stat-total-hours">109 hs</div>
+            </div>
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+              <div class="text-[10px] text-slate-500 uppercase font-semibold">Archivos / Commits</div>
+              <div class="text-xl font-black text-emerald-600 mt-0.5" id="stat-total-files">24</div>
+            </div>
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+              <div class="text-[10px] text-slate-500 uppercase font-semibold">Micro-entregas OK</div>
+              <div class="text-xl font-black text-brand-navy mt-0.5" id="stat-total-tasks">16</div>
+            </div>
+            <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-center">
+              <div class="text-[10px] text-slate-500 uppercase font-semibold">Equidad Grupal</div>
+              <div class="text-xl font-black text-emerald-600 mt-0.5" id="stat-equity-pct">92%</div>
+            </div>
+          </div>
+
+          <!-- COMPARATIVE BREAKDOWN BARS -->
+          <div class="mt-6">
+            <div class="flex items-center justify-between mb-2">
+              <h3 class="text-sm font-bold text-slate-800">Participación Acumulada por Integrante (% Calculado de Datos)</h3>
+              <span class="text-xs text-slate-500 font-mono" id="ideal-equity-label">Ideal: ~14.3% c/u</span>
+            </div>
+
+            <div class="space-y-3" id="contribution-bars-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- BREAKDOWN TABLE OF METRICS (WITH MODIFIABLE QUICK ACTIONS) -->
+          <div class="mt-8 pt-6 border-t border-slate-100">
+            <div class="flex items-center justify-between mb-3">
+              <div>
+                <h3 class="text-sm font-bold text-slate-800">Métricas Detalladas por Integrante</h3>
+                <p class="text-[11px] text-slate-500">Puedes simular o incrementar aportes en vivo haciendo clic en los botones de acción.</p>
+              </div>
+            </div>
+
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+              <table class="w-full text-xs text-left">
+                <thead class="bg-slate-50 text-slate-700 font-semibold border-b border-slate-200">
+                  <tr>
+                    <th class="p-2.5">Integrante</th>
+                    <th class="p-2.5 text-center">Tareas Listas</th>
+                    <th class="p-2.5 text-center">Archivos</th>
+                    <th class="p-2.5 text-center">Revisiones</th>
+                    <th class="p-2.5 text-center">Horas</th>
+                    <th class="p-2.5 text-center">% Final</th>
+                    <th class="p-2.5 text-right">Simular Aporte</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100" id="contribution-details-table-body">
+                  <!-- Rendered dynamically -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- AUDIT FEED / HISTORIAL DE PRUEBAS -->
+          <div class="mt-8 pt-6 border-t border-slate-100">
+            <h3 class="text-sm font-bold text-slate-800 mb-3 flex items-center gap-2">
+              <span>📋 Muro de Evidencias y Auditoría Inmutable</span>
+              <span class="text-[11px] font-normal text-slate-500" id="evidence-count-label">(5 registros)</span>
+            </h3>
+
+            <div class="space-y-2.5 max-h-72 overflow-y-auto pr-2" id="evidence-feed-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ========================================== -->
+      <!-- TAB 5: MI DISPONIBILIDAD (FALLBACK MANUAL) -->
+      <!-- ========================================== -->
+      <section id="tab-availability" class="space-y-6 hidden">
+        <div class="bg-white rounded-2xl p-4 sm:p-6 shadow-sm border border-slate-200">
+          
+          <div class="border-b border-slate-100 pb-5">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-700">
+              🛠️ Modo Alternativo / Resguardo de Privacidad
+            </div>
+            <h2 class="text-xl font-bold text-slate-900 mt-2">Carga Manual de Horarios (Fallback)</h2>
+            <p class="text-xs text-slate-500 mt-1 max-w-2xl">
+              Si no quieres vincular tu cuenta de Google Calendar, marca tus bloques libres u ocupados en la grilla. El algoritmo los cruzará igual de forma transparente con el grupo.
+            </p>
+          </div>
+
+          <!-- STATUS BOX -->
+          <div class="my-5 p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
+                ✓
+              </div>
+              <div>
+                <div class="text-xs font-bold text-slate-800">Estado de tu cuenta: Conectado a Google Calendar</div>
+                <div class="text-[11px] text-slate-500">Última sincronización automática: hace 3 minutos.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="showToast('Sincronización manual actualizada con éxito')" class="px-3.5 py-2 bg-brand-navy hover:bg-slate-800 text-white rounded-xl text-xs font-semibold transition">
+                Forzar actualización
+              </button>
+            </div>
+          </div>
+
+          <!-- INTERACTIVE GRID INSTRUCTIONS -->
+          <div>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+              <span class="text-xs font-bold text-slate-700">Haz clic en los bloques para alternar entre "Libre" y "Ocupado":</span>
+              <div class="flex items-center gap-2 text-xs">
+                <span class="flex items-center gap-1"><span class="w-3 h-3 bg-emerald-100 border border-emerald-400 rounded"></span> Libre</span>
+                <span class="flex items-center gap-1"><span class="w-3 h-3 bg-slate-100 border border-slate-300 rounded"></span> Ocupado</span>
+              </div>
+            </div>
+
+            <!-- WEEK GRID -->
+            <div class="grid grid-cols-6 gap-2 text-center text-xs" id="interactive-manual-grid">
+              <!-- Generated via JS -->
+            </div>
+
+            <div class="mt-5 flex justify-end">
+              <button onclick="saveManualAvailability()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition">
+                Guardar Mi Disponibilidad
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </main>
+
+  </div> <!-- /MAIN APP CONTAINER -->
+
+  <!-- MOBILE BOTTOM NAVIGATION (ALWAYS VISIBLE & PINNED TO BOTTOM ON MOBILE) -->
+  <nav id="mobile-bottom-nav" class="md:hidden bg-brand-navy/95 backdrop-blur-md text-white border-t border-slate-800 fixed bottom-0 left-0 right-0 z-40 px-2 py-1.5 flex items-center justify-around text-[10px] shadow-2xl" style="position: fixed !important; bottom: 0 !important; left: 0 !important; right: 0 !important; z-index: 45 !important; padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0.5rem));">
+    <button onclick="switchTab('dashboard')" id="mobile-nav-dashboard" class="flex flex-col items-center gap-0.5 text-emerald-400 font-semibold py-1 px-2.5 rounded-xl transition active:scale-95">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+      <span>Inicio</span>
+    </button>
+
+    <button onclick="switchTab('calendar')" id="mobile-nav-calendar" class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-200 py-1 px-2.5 rounded-xl transition active:scale-95">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      <span>Cruce</span>
+    </button>
+
+    <button onclick="switchTab('tasks')" id="mobile-nav-tasks" class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-200 py-1 px-2.5 rounded-xl transition active:scale-95">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      <span>Tareas</span>
+    </button>
+
+    <button onclick="switchTab('contributions')" id="mobile-nav-contributions" class="flex flex-col items-center gap-0.5 text-slate-400 hover:text-slate-200 py-1 px-2.5 rounded-xl transition active:scale-95">
+      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      <span>Aportes</span>
+    </button>
+
+    <button onclick="openModoOcupadoModal()" id="mobile-nav-ocupado" class="flex flex-col items-center gap-0.5 text-amber-400 hover:text-amber-300 font-semibold py-1 px-2.5 rounded-xl transition active:scale-95">
+      <span id="mobile-nav-ocupado-dot" class="w-5 h-5 rounded-full bg-rose-600 text-white flex items-center justify-center text-xs shadow-sm">🔴</span>
+      <span id="mobile-nav-ocupado-label">Ocupado</span>
+    </button>
+  </nav>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 0: SELECTOR DE PROYECTOS (PERFECTAMENTE CENTRADO) -->
+  <!-- ======================================================== -->
+  <div id="modal-project-picker" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-4 sm:p-6 shadow-2xl border border-slate-200 mx-auto my-auto relative overflow-hidden box-border">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="min-w-0 flex-1 pr-2">
+          <h3 class="text-base font-bold text-slate-900 truncate">Mis Proyectos Grupales</h3>
+          <p class="text-[11px] text-slate-500 truncate">Selecciona para cambiar las tareas, integrantes y datos</p>
+        </div>
+        <button onclick="closeProjectModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold p-1 leading-none flex-shrink-0">&times;</button>
+      </div>
+
+      <div class="mt-4 space-y-2.5 max-h-[60vh] overflow-y-auto pr-1" id="projects-picker-list">
+        <!-- Injected via JS -->
+      </div>
+
+      <div class="mt-5 pt-3 border-t border-slate-100 flex items-center justify-between">
+        <button onclick="closeProjectModal(); openOnboardingModal();" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm active:scale-95">
+          <svg class="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+          <span>+ Crear Nuevo Proyecto</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 1: MODO OCUPADO (Feature distintiva del documento) -->
+  <!-- ======================================================== -->
+  <div id="modal-modo-ocupado" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-4 sm:p-6 shadow-2xl border border-slate-200 mx-auto my-auto relative overflow-hidden box-border">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+          <div class="w-8 h-8 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center font-bold flex-shrink-0">
+            🔴
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-base font-bold text-slate-900 truncate" id="modo-ocupado-modal-title">Modo "Ocupado"</h3>
+            <p class="text-[11px] text-slate-500 truncate">Avisa al grupo para evitar que te asignen reuniones ahora</p>
+          </div>
+        </div>
+        <button onclick="closeModoOcupadoModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold p-1 leading-none flex-shrink-0">&times;</button>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        <!-- Current status indicator inside modal -->
+        <div id="modo-ocupado-current-status-box" class="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+          <!-- Populated by JS -->
+        </div>
+
+        <div id="modo-ocupado-form-inputs">
+          <label class="block text-xs font-semibold text-slate-700 mb-1">¿Por cuánto tiempo no vas a estar disponible?</label>
+          <div class="grid grid-cols-3 gap-2 text-xs">
+            <button type="button" onclick="selectDuration(this, '2 horas')" class="duration-btn py-2 px-2 border border-slate-200 rounded-xl hover:border-emerald-500 text-center font-medium active bg-emerald-50 border-emerald-500 text-emerald-800">
+              2 horas
+            </button>
+            <button type="button" onclick="selectDuration(this, 'Hasta las 20hs')" class="duration-btn py-2 px-2 border border-slate-200 rounded-xl hover:border-emerald-500 text-center font-medium">
+              Hasta las 20hs
+            </button>
+            <button type="button" onclick="selectDuration(this, 'Todo el día')" class="duration-btn py-2 px-2 border border-slate-200 rounded-xl hover:border-emerald-500 text-center font-medium">
+              Todo el día
+            </button>
+          </div>
+
+          <div class="mt-3">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Motivo (Opcional - Privacidad protegida):</label>
+            <input type="text" id="modo-ocupado-reason" placeholder="Ej: Rindo examen de Álgebra / Turno médico" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            <p class="text-[10px] text-slate-400 mt-1">El resto del equipo solo verá tu estado como "Ocupado" para proteger tu privacidad.</p>
+          </div>
+        </div>
+
+        <div class="bg-amber-50 p-3 rounded-xl border border-amber-200 text-xs text-amber-900">
+          <b>Acción automática:</b> Se actualizará el calendario grupal de SyncStudy y se enviará una notificación a todos los integrantes.
+        </div>
+      </div>
+
+      <div class="mt-6 flex items-center justify-end gap-2" id="modo-ocupado-modal-actions">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 2: ONBOARDING EN 3 PASOS (Página 23 del documento) -->
+  <!-- ======================================================== -->
+  <div id="modal-onboarding" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-[calc(100vw-2rem)] sm:max-w-lg p-4 sm:p-6 shadow-2xl border border-slate-200 mx-auto my-auto relative overflow-hidden box-border">
+      
+      <!-- Stepper header -->
+      <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div>
+          <span class="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Flujo de Onboarding</span>
+          <h3 class="text-lg font-bold text-slate-900">Configuración en 3 Pasos</h3>
+        </div>
+        <button onclick="closeOnboardingModal()" class="text-slate-400 hover:text-slate-600 text-2xl font-bold">&times;</button>
+      </div>
+
+      <!-- Step Indicator -->
+      <div class="flex items-center justify-between my-4 px-2">
+        <div class="flex items-center gap-2">
+          <span id="step-num-1" class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center">1</span>
+          <span class="text-xs font-semibold text-slate-800">Crear Proyecto</span>
+        </div>
+        <div class="h-0.5 flex-1 mx-2 bg-slate-200" id="step-line-1"></div>
+        <div class="flex items-center gap-2">
+          <span id="step-num-2" class="w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center">2</span>
+          <span class="text-xs font-medium text-slate-500">Invitar Equipo</span>
+        </div>
+        <div class="h-0.5 flex-1 mx-2 bg-slate-200" id="step-line-2"></div>
+        <div class="flex items-center gap-2">
+          <span id="step-num-3" class="w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center">3</span>
+          <span class="text-xs font-medium text-slate-500">Conectar Google</span>
+        </div>
+      </div>
+
+      <!-- STEP CONTENTS -->
+      <!-- Step 1 -->
+      <div id="onboarding-step-1" class="space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Nombre del Trabajo Práctico:</label>
+          <input type="text" id="ob-project-name" value="TPO Tecnología e Innovación" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Materia / Universidad:</label>
+            <input type="text" value="Tecnología e Innovación - UADE" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Fecha de Entrega Final:</label>
+            <input type="date" value="2026-11-19" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+          </div>
+        </div>
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600">
+          💡 SyncStudy configurará automáticamente las sugerencias de micro-entregas en base al tiempo restante hasta el deadline (2 semanas).
+        </div>
+      </div>
+
+      <!-- Step 2 -->
+      <div id="onboarding-step-2" class="space-y-3 hidden">
+        <p class="text-xs text-slate-600">Comparte este enlace o código con tus compañeros para que se unan con un solo clic:</p>
+        <div class="flex items-center gap-2">
+          <input type="text" readonly value="https://syncstudy.app/join/SYNC-FAIN-26" class="w-full text-xs font-mono p-2.5 rounded-xl bg-slate-100 border border-slate-300">
+          <button onclick="showToast('Enlace copiado al portapapeles')" class="px-3 py-2.5 bg-brand-navy text-white text-xs font-semibold rounded-xl hover:bg-slate-800">
+            Copiar
+          </button>
+        </div>
+        <div class="border border-slate-200 rounded-xl p-3 bg-slate-50">
+          <div class="text-[11px] font-bold text-slate-500 uppercase">Integrantes confirmados (7):</div>
+          <div class="mt-2 flex flex-wrap gap-1.5 text-xs">
+            <span class="bg-white border border-slate-200 px-2 py-1 rounded-lg">Katherine Cobos</span>
+            <span class="bg-white border border-slate-200 px-2 py-1 rounded-lg">Ramiro Garcia</span>
+            <span class="bg-white border border-slate-200 px-2 py-1 rounded-lg">Agustín Romero</span>
+            <span class="bg-white border border-slate-200 px-2 py-1 rounded-lg">Floriana Moreno</span>
+            <span class="bg-white border border-slate-200 px-2 py-1 rounded-lg">Pedro Kozaczyszyn</span>
+            <span class="bg-white border border-slate-200 px-2 py-1 rounded-lg">Facundo Gagliardi</span>
+            <span class="bg-white border border-slate-200 px-2 py-1 rounded-lg">Valentín Oubiña</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 3 -->
+      <div id="onboarding-step-3" class="space-y-4 hidden">
+        <div class="text-center p-4 bg-emerald-50 border border-emerald-200 rounded-2xl">
+          <div class="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm text-2xl">
+            📅
+          </div>
+          <h4 class="font-bold text-slate-900 mt-2">Vincular con Google Calendar</h4>
+          <p class="text-xs text-slate-600 mt-1 max-w-xs mx-auto">
+            Autoriza a SyncStudy para encontrar huecos libres automáticamente entre todos los calendarios.
+          </p>
+          <div class="mt-4 flex flex-col gap-2">
+            <button onclick="finishOnboardingWithGoogle()" class="py-2.5 px-4 bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/></svg>
+              <span>Continuar con Google Workspace / Gmail</span>
+            </button>
+            <button onclick="finishOnboardingManual()" class="text-xs text-slate-500 hover:text-slate-800 underline">
+              O configurar manualmente más tarde (Fallback)
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Buttons footer -->
+      <div class="mt-6 flex items-center justify-between pt-3 border-t border-slate-100">
+        <button id="ob-btn-back" onclick="prevOnboardingStep()" class="text-xs font-semibold text-slate-500 hover:text-slate-800 hidden">
+          ← Volver
+        </button>
+        <div class="ml-auto">
+          <button id="ob-btn-next" onclick="nextOnboardingStep()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition">
+            Siguiente Paso →
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 3: NUEVA MICRO-ENTREGA -->
+  <!-- ======================================================== -->
+  <div id="modal-new-task" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-4 sm:p-6 shadow-2xl border border-slate-200 mx-auto my-auto relative overflow-hidden box-border">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900">Crear Micro-entrega</h3>
+        <button onclick="closeNewTaskModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Título de la micro-entrega:</label>
+          <input type="text" id="task-title-input" placeholder="Ej: Ajustar diapositivas de defensa oral" class="w-full text-xs p-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Responsable:</label>
+            <select id="task-assignee-input" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+              <!-- Dynamically populated from active project members -->
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Fecha límite:</label>
+            <input type="text" id="task-due-input" value="En 4 días" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Dependencia (¿Qué tarea debe completarse antes?):</label>
+          <select id="task-dep-input" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+            <option value="none">Sin dependencias (Comienza de inmediato)</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Etapa del proyecto:</label>
+          <input type="text" id="task-phase-input" value="Fase 2: Arquitectura y Modelo" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+        </div>
+      </div>
+
+      <div class="mt-6 flex items-center justify-end gap-2">
+        <button type="button" onclick="closeNewTaskModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">
+          Cancelar
+        </button>
+        <button type="button" onclick="saveNewTask()" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition">
+          Crear y Asignar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- MODAL 4: SUBIR PRUEBA DE CONTRIBUCIÓN (EVIDENCIA) -->
+  <!-- ======================================================== -->
+  <div id="modal-upload-evidence" class="fixed inset-0 z-50 modal-backdrop hidden flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl w-full max-w-[calc(100vw-2rem)] sm:max-w-md p-4 sm:p-6 shadow-2xl border border-slate-200 mx-auto my-auto relative overflow-hidden box-border">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+        <h3 class="text-base font-bold text-slate-900">Registrar Prueba de Contribución</h3>
+        <button onclick="closeUploadEvidenceModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="mt-4 space-y-3">
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Integrante que aporta:</label>
+          <select id="evidence-author-input" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+            <!-- Dynamically populated from active project members -->
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Tipo de evidencia:</label>
+          <select id="evidence-type-input" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+            <option value="Archivo / Documento">Archivo / Documento (PDF, DOCX, XLSX)</option>
+            <option value="Código / Commit">Repositorio / Código Fuente</option>
+            <option value="Revisión / Feedback">Revisión de pares aprobada</option>
+            <option value="Diseño / Wireframe">Diseño Figma / Mockup</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Descripción del aporte:</label>
+          <input type="text" id="evidence-desc-input" placeholder="Ej: Agregué la tabla de múltiplos de salida" class="w-full text-xs p-2.5 rounded-xl border border-slate-300">
+        </div>
+
+        <div class="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-4 text-center cursor-pointer bg-slate-50">
+          <svg class="w-8 h-8 text-slate-400 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="text-xs text-slate-600 block mt-1">Arrastra tu archivo o haz clic para adjuntar comprobante</span>
+          <span class="text-[10px] text-slate-400">PDF, PNG, ZIP, DOCX hasta 25MB</span>
+        </div>
+      </div>
+
+      <div class="mt-6 flex items-center justify-end gap-2">
+        <button type="button" onclick="closeUploadEvidenceModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">
+          Cancelar
+        </button>
+        <button type="button" onclick="saveEvidence()" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow-sm transition">
+          Registrar en la Auditoría
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast" class="fixed bottom-16 md:bottom-6 right-4 sm:right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 pointer-events-none max-w-sm">
+    <div class="bg-brand-navy text-white px-4 py-3 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-3">
+      <div id="toast-icon" class="w-7 h-7 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm flex-shrink-0">
+        ✓
+      </div>
+      <div class="text-xs">
+        <div id="toast-title" class="font-bold text-emerald-400">Notificación</div>
+        <div id="toast-message" class="text-slate-200">Operación realizada con éxito</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================================================== -->
+  <!-- APPLICATION LOGIC & STATE (JAVASCRIPT) -->
+  <!-- ======================================================== -->
+  <script>
+    // DICCIONARIO DE PROYECTOS (Datos estructurados, modificables y con estadísticas calculadas)
+    const projectsData = {
+      "TPO Tecnología e Innovación": {
+        name: "TPO Tecnología e Innovación",
+        institution: "UADE · FAIN",
+        professor: "Turno: Jueves Mañana · Prof. Juan Carlos Madeo",
+        deadlineDays: 14, // Exactamente 2 semanas como solicitó el usuario!
+        deadlineDateString: "Jueves 19 de Noviembre (Faltan 2 semanas)",
+        joinCode: "SYNC-FAIN-26",
+        members: [
+          { id: 1, name: "Katherine Cobos", short: "KC", color: "bg-blue-600", role: "PM / Finanzas", status: "Libre", source: "Google Calendar", tasksCompleted: 4, filesUploaded: 5, reviewsDone: 3, hoursLogged: 24 },
+          { id: 2, name: "Facundo Gagliardi", short: "FG", color: "bg-emerald-600", role: "Dev / Prototipo (Vos)", status: "Libre", source: "Google Calendar", tasksCompleted: 3, filesUploaded: 6, reviewsDone: 4, hoursLogged: 22 },
+          { id: 3, name: "Ramiro Garcia", short: "RG", color: "bg-indigo-600", role: "Investigación / Canvas", status: "Libre", source: "Google Calendar", tasksCompleted: 3, filesUploaded: 4, reviewsDone: 2, hoursLogged: 18 },
+          { id: 4, name: "Pedro Kozaczyszyn", short: "PK", color: "bg-purple-600", role: "Arquitectura API", status: "Libre", source: "Google Calendar", tasksCompleted: 2, filesUploaded: 3, reviewsDone: 3, hoursLogged: 16 },
+          { id: 5, name: "Floriana Moreno", short: "FM", role: "Mercado / Salidas", color: "bg-teal-600", status: "Libre", source: "Google Calendar", tasksCompleted: 2, filesUploaded: 3, reviewsDone: 2, hoursLogged: 14 },
+          { id: 6, name: "Agustín Romero", short: "AR", role: "Económico", color: "bg-amber-600", status: "Libre", source: "Google Calendar", tasksCompleted: 1, filesUploaded: 2, reviewsDone: 1, hoursLogged: 8 },
+          { id: 7, name: "Valentín Oubiña", short: "VO", role: "Documentación", color: "bg-rose-600", status: "Libre", source: "Manual", tasksCompleted: 1, filesUploaded: 1, reviewsDone: 0, hoursLogged: 6 }
+        ],
+        tasks: [
+          { id: 101, phase: "Fase 1: Diagnóstico e Idea", title: "Problemática y Justificación del TPO", assignee: "Katherine Cobos", due: "Hace 5 días", completed: true, delayed: false, dependsOn: null },
+          { id: 102, phase: "Fase 1: Diagnóstico e Idea", title: "Análisis de Competencia y PESTEL", assignee: "Ramiro Garcia", due: "Hace 3 días", completed: true, delayed: false, dependsOn: null },
+          { id: 103, phase: "Fase 1: Diagnóstico e Idea", title: "Business Model Canvas y 4Ps", assignee: "Floriana Moreno", due: "Hace 2 días", completed: true, delayed: false, dependsOn: null },
+          
+          { id: 104, phase: "Fase 2: Informe y Modelo", title: "Validación Técnica: Patrón Adapter Calendar API", assignee: "Pedro Kozaczyszyn", due: "Ayer", completed: true, delayed: false, dependsOn: null },
+          { id: 105, phase: "Fase 2: Informe y Modelo", title: "Modelo Financiero y Sensibilidad (5 Años)", assignee: "Agustín Romero", due: "En 2 días", completed: false, delayed: true, dependsOn: null },
+          { id: 106, phase: "Fase 2: Informe y Modelo", title: "Redacción de Resumen Ejecutivo y Riesgos", assignee: "Katherine Cobos", due: "En 4 días", completed: true, delayed: false, dependsOn: null },
+
+          { id: 107, phase: "Fase 3: Prototipo y Entrega", title: "Prototipo Interactivo MVP en HTML", assignee: "Facundo Gagliardi", due: "En 6 días", completed: false, delayed: false, dependsOn: "Modelo Financiero y Sensibilidad (5 Años)" },
+          { id: 108, phase: "Fase 3: Prototipo y Entrega", title: "Pruebas de Usabilidad con Estudiantes UADE", assignee: "Facundo Gagliardi", due: "En 9 días", completed: false, delayed: false, dependsOn: "Prototipo Interactivo MVP en HTML" },
+          { id: 109, phase: "Fase 3: Prototipo y Entrega", title: "Diapositivas y Ensayo de Exposición Final", assignee: "Valentín Oubiña", due: "En 12 días", completed: false, delayed: false, dependsOn: "Prototipo Interactivo MVP en HTML" }
+        ],
+        evidences: [
+          { id: 1, author: "Facundo Gagliardi", type: "Código / Commit", desc: "Creación del simulador MVP interactivo responsive", time: "Hace 20 min" },
+          { id: 2, author: "Katherine Cobos", type: "Archivo / PDF", desc: "Subió 'TPO_Tecnologia_e_Innovacion_vFinal.pdf' (pág. 1-55)", time: "Hace 2 horas" },
+          { id: 3, author: "Pedro Kozaczyszyn", type: "Especificación", desc: "Validación de arquitectura OAuth 2.0 y compatibilidad CalDAV", time: "Hace 4 horas" },
+          { id: 4, author: "Floriana Moreno", type: "Archivo / PDF", desc: "Análisis de Océano Azul y 5 Fuerzas de Porter", time: "Ayer" },
+          { id: 5, author: "Ramiro Garcia", type: "Documento", desc: "Definición de Misión, Visión, Valores y Perfil de Cliente", time: "Hace 2 días" }
+        ],
+        // Matriz semanal: 0: Ocupado (Gris), 1: Algunos ocupados (Amarillo), 2: Todos libres (Verde)
+        // Horarios: 08-10, 10-12, 14-16, 16-18, 18-20, 20-22 | Días: Lun a Sáb
+        scheduleGrid: [
+          [0, 1, 0, 0, 2, 2], // 08:00 - 10:00
+          [0, 0, 1, 0, 1, 2], // 10:00 - 12:00
+          [2, 0, 0, 2, 0, 2], // 14:00 - 16:00
+          [1, 1, 2, 2, 1, 2], // 16:00 - 18:00
+          [0, 1, 2, 2, 0, 2], // 18:00 - 20:00
+          [1, 0, 2, 1, 0, 0]  // 20:00 - 22:00
+        ]
+      },
+
+      "TP2 Algoritmos y Estructura de Datos": {
+        name: "TP2 Algoritmos y Estructura de Datos",
+        institution: "UADE · FAIN",
+        professor: "Turno: Martes Noche · Prof. Ing. Martín Rossi",
+        deadlineDays: 8,
+        deadlineDateString: "Viernes 13 de Noviembre (Faltan 8 días)",
+        joinCode: "ALGO-TREE-02",
+        members: [
+          { id: 21, name: "Facundo Gagliardi", short: "FG", color: "bg-emerald-600", role: "Líder / C++ (Vos)", status: "Libre", source: "Google Calendar", tasksCompleted: 5, filesUploaded: 7, reviewsDone: 4, hoursLogged: 26 },
+          { id: 22, name: "Lucas Benítez", short: "LB", color: "bg-blue-600", role: "Grafos y Árboles", status: "Libre", source: "Google Calendar", tasksCompleted: 4, filesUploaded: 4, reviewsDone: 3, hoursLogged: 20 },
+          { id: 23, name: "Camila Varela", short: "CV", color: "bg-purple-600", role: "Casos de Test y Docs", status: "Libre", source: "Google Calendar", tasksCompleted: 3, filesUploaded: 3, reviewsDone: 2, hoursLogged: 16 }
+        ],
+        tasks: [
+          { id: 201, phase: "Etapa 1: Clases Base", title: "Diseño e implementación de Grafo Ponderado", assignee: "Facundo Gagliardi", due: "Hace 4 días", completed: true, delayed: false, dependsOn: null },
+          { id: 202, phase: "Etapa 1: Clases Base", title: "Algoritmo de Dijkstra con Min-Heap", assignee: "Lucas Benítez", due: "Hace 2 días", completed: true, delayed: false, dependsOn: null },
+          { id: 203, phase: "Etapa 2: Benchmarking", title: "Pruebas de estrés con 100.000 nodos", assignee: "Camila Varela", due: "En 2 días", completed: false, delayed: false, dependsOn: null },
+          { id: 204, phase: "Etapa 2: Benchmarking", title: "Informe de complejidad temporal O(V log V)", assignee: "Lucas Benítez", due: "En 4 días", completed: false, delayed: false, dependsOn: "Pruebas de estrés con 100.000 nodos" },
+          { id: 205, phase: "Etapa 3: Entrega", title: "Compilación de ejecutable y video demostrativo", assignee: "Facundo Gagliardi", due: "En 7 días", completed: false, delayed: false, dependsOn: "Informe de complejidad temporal O(V log V)" }
+        ],
+        evidences: [
+          { id: 21, author: "Facundo Gagliardi", type: "Código / Commit", desc: "Commit 'feat: add Dijkstra shortest path priority queue'", time: "Hace 1 hora" },
+          { id: 22, author: "Lucas Benítez", type: "Código / Commit", desc: "Commit 'test: benchmark 10k nodes passing in 42ms'", time: "Ayer" },
+          { id: 23, author: "Camila Varela", type: "Archivo / PDF", desc: "Documento de casos de prueba unitarios", time: "Hace 2 días" }
+        ],
+        scheduleGrid: [
+          [2, 0, 1, 0, 2, 2],
+          [2, 0, 2, 0, 1, 2],
+          [1, 2, 0, 2, 0, 2],
+          [0, 2, 2, 2, 2, 1],
+          [2, 2, 2, 1, 2, 2],
+          [0, 1, 1, 0, 0, 1]
+        ]
+      },
+
+      "Trabajo Integrador Sistemas de Gestión": {
+        name: "Trabajo Integrador Sistemas de Gestión",
+        institution: "UADE · FAIN",
+        professor: "Turno: Viernes Noche · Prof. Lic. Laura Morales",
+        deadlineDays: 21,
+        deadlineDateString: "Jueves 26 de Noviembre (Faltan 3 semanas)",
+        joinCode: "ERP-SGA-2026",
+        members: [
+          { id: 31, name: "Facundo Gagliardi", short: "FG", color: "bg-emerald-600", role: "Analista Funcional (Vos)", status: "Libre", source: "Google Calendar", tasksCompleted: 2, filesUploaded: 3, reviewsDone: 1, hoursLogged: 12 },
+          { id: 32, name: "Matías Silva", short: "MS", color: "bg-indigo-600", role: "Mapeo BPMN", status: "Libre", source: "Google Calendar", tasksCompleted: 2, filesUploaded: 2, reviewsDone: 2, hoursLogged: 11 },
+          { id: 33, name: "Sofía Castro", short: "SC", color: "bg-teal-600", role: "Relevamiento ERP", status: "Libre", source: "Google Calendar", tasksCompleted: 1, filesUploaded: 2, reviewsDone: 1, hoursLogged: 9 },
+          { id: 34, name: "Gonzalo Ruiz", short: "GR", color: "bg-amber-600", role: "Costos y ROI", status: "Libre", source: "Google Calendar", tasksCompleted: 1, filesUploaded: 1, reviewsDone: 0, hoursLogged: 7 }
+        ],
+        tasks: [
+          { id: 301, phase: "Módulo 1: Relevamiento", title: "Entrevistas de procesos de compras y stock", assignee: "Matías Silva", due: "Hace 2 días", completed: true, delayed: false, dependsOn: null },
+          { id: 302, phase: "Módulo 1: Relevamiento", title: "Diagramas BPMN estado AS-IS", assignee: "Sofía Castro", due: "En 3 días", completed: false, delayed: false, dependsOn: null },
+          { id: 303, phase: "Módulo 2: Propuesta TO-BE", title: "Diseño arquitectura TO-BE con SAP / Odoo", assignee: "Facundo Gagliardi", due: "En 7 días", completed: false, delayed: false, dependsOn: "Diagramas BPMN estado AS-IS" },
+          { id: 304, phase: "Módulo 2: Propuesta TO-BE", title: "Estimación de presupuesto y retorno de inversión", assignee: "Gonzalo Ruiz", due: "En 12 días", completed: false, delayed: false, dependsOn: null }
+        ],
+        evidences: [
+          { id: 31, author: "Matías Silva", type: "Archivo / PDF", desc: "Minuta de reunión con gerencia de abastecimiento", time: "Hace 4 horas" },
+          { id: 32, author: "Facundo Gagliardi", type: "Documento", desc: "Comparativa técnica módulos Odoo vs SAP B1", time: "Ayer" }
+        ],
+        scheduleGrid: [
+          [1, 2, 0, 1, 0, 2],
+          [0, 2, 1, 2, 0, 2],
+          [2, 0, 2, 0, 2, 2],
+          [2, 1, 2, 2, 0, 2],
+          [1, 2, 2, 2, 0, 2],
+          [0, 0, 1, 1, 0, 1]
+        ]
+      }
+    };
+
+    // ACTIVE STATE
+    let currentProjectKey = "TPO Tecnología e Innovación";
+    let activeFilter = 'all';
+    let isModoOcupadoActive = false;
+    let modoOcupadoDuration = "2 horas";
+    let countdownInterval = null;
+
+    // Helper: current project object
+    function getProject() {
+      return projectsData[currentProjectKey];
+    }
+
+    // Dynamic Smart Slot Labels based on current presentation day
+    function getDynamicSmartSlots() {
+      const now = new Date();
+      const day = now.getDay(); // 4 = Jueves, 3 = Miércoles
+      const isThursday = (day === 4);
+
+      if (isThursday) {
+        return [
+          {
+            badge: "Recomendado",
+            badgeClass: "bg-emerald-600 text-white",
+            dayTitle: "HOY JUEVES (Tarde)",
+            hours: "18:00 — 20:00 hs",
+            statusText: "7 de 7 libres (100%)",
+            desc: "Hueco libre en común después de cursar. Ideal para organizar el sprint.",
+            buttonText: "Agendar en Google Calendar",
+            buttonClass: "bg-emerald-600 hover:bg-emerald-700 text-white"
+          },
+          {
+            badge: "Opción 2",
+            badgeClass: "bg-slate-100 text-slate-600",
+            dayTitle: "MAÑANA VIERNES",
+            hours: "16:00 — 18:30 hs",
+            statusText: "7 de 7 libres (100%)",
+            desc: "Todo el equipo disponible para revisión y ensamble de partes.",
+            buttonText: "Agendar este horario",
+            buttonClass: "bg-slate-800 hover:bg-slate-900 text-white"
+          },
+          {
+            badge: "Opción 3 (6/7)",
+            badgeClass: "bg-amber-100 text-amber-800",
+            dayTitle: "SÁBADO",
+            hours: "10:00 — 12:30 hs",
+            statusText: "Algunos ocupados (6/7 libres)",
+            desc: "1 integrante ocupado en este bloque.",
+            buttonText: "Agendar con 1 ausente",
+            buttonClass: "bg-slate-100 hover:bg-slate-200 text-slate-700"
+          }
+        ];
+      } else {
+        return [
+          {
+            badge: "Recomendado",
+            badgeClass: "bg-emerald-600 text-white",
+            dayTitle: "MAÑANA JUEVES (Tarde)",
+            hours: "18:00 — 20:00 hs",
+            statusText: "7 de 7 libres (100%)",
+            desc: "Hueco libre en común después de cursar. Ideal para organizar el sprint.",
+            buttonText: "Agendar en Google Calendar",
+            buttonClass: "bg-emerald-600 hover:bg-emerald-700 text-white"
+          },
+          {
+            badge: "Opción 2",
+            badgeClass: "bg-slate-100 text-slate-600",
+            dayTitle: "VIERNES",
+            hours: "16:00 — 18:30 hs",
+            statusText: "7 de 7 libres (100%)",
+            desc: "Todo el equipo disponible para revisión y ensamble de partes.",
+            buttonText: "Agendar este horario",
+            buttonClass: "bg-slate-800 hover:bg-slate-900 text-white"
+          },
+          {
+            badge: "Opción 3 (6/7)",
+            badgeClass: "bg-amber-100 text-amber-800",
+            dayTitle: "SÁBADO",
+            hours: "10:00 — 12:30 hs",
+            statusText: "Algunos ocupados (6/7 libres)",
+            desc: "1 integrante ocupado en este bloque.",
+            buttonText: "Agendar con 1 ausente",
+            buttonClass: "bg-slate-100 hover:bg-slate-200 text-slate-700"
+          }
+        ];
+      }
+    }
+
+    // Switch Tab Functionality
+    function switchTab(tabId) {
+      const tabs = ['dashboard', 'calendar', 'tasks', 'contributions', 'availability'];
+      tabs.forEach(t => {
+        const section = document.getElementById(`tab-${t}`);
+        if (section) {
+          section.classList.toggle('hidden', t !== tabId);
+        }
+
+        // Desktop nav
+        const dBtn = document.getElementById(`nav-btn-${t}`);
+        if (dBtn) {
+          if (t === tabId) {
+            dBtn.classList.add('text-emerald-400', 'bg-slate-800');
+            dBtn.classList.remove('text-slate-300');
+          } else {
+            dBtn.classList.remove('text-emerald-400', 'bg-slate-800');
+            dBtn.classList.add('text-slate-300');
+          }
+        }
+
+        // Mobile nav
+        const mBtn = document.getElementById(`mobile-nav-${t}`);
+        if (mBtn) {
+          if (t === tabId) {
+            mBtn.classList.add('text-emerald-400', 'font-semibold');
+            mBtn.classList.remove('text-slate-400');
+          } else {
+            mBtn.classList.remove('text-emerald-400', 'font-semibold');
+            mBtn.classList.add('text-slate-400');
+          }
+        }
+      });
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // DYNAMIC CONTRIBUTIONS CALCULATION
+    // Formula based on real work: tasks, files, reviews, hours
+    function calculateContributions() {
+      const project = getProject();
+      const members = project.members;
+
+      // Calculate raw points
+      let totalPoints = 0;
+      members.forEach(m => {
+        m.score = (m.tasksCompleted * 12) + (m.filesUploaded * 6) + (m.reviewsDone * 4) + (m.hoursLogged * 1.5);
+        totalPoints += m.score;
+      });
+
+      if (totalPoints === 0) totalPoints = 1;
+
+      // Assign percentages
+      let sumPct = 0;
+      members.forEach(m => {
+        m.contributionPct = Math.round((m.score / totalPoints) * 100);
+        sumPct += m.contributionPct;
+      });
+
+      // Adjust rounding to exactly 100%
+      const diff = 100 - sumPct;
+      if (diff !== 0 && members.length > 0) {
+        members[0].contributionPct += diff;
+      }
+
+      return members;
+    }
+
+    // PROJECT SWITCHER
+    function openProjectModal() {
+      const list = document.getElementById('projects-picker-list');
+      if (!list) return;
+
+      let html = '';
+      Object.keys(projectsData).forEach(pKey => {
+        const p = projectsData[pKey];
+        const isCurrent = (pKey === currentProjectKey);
+        html += `
+          <div onclick="selectProject('${pKey}')" class="p-3 rounded-xl border ${isCurrent ? 'border-2 border-emerald-500 bg-emerald-50/60 shadow-sm' : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50'} cursor-pointer flex items-center justify-between gap-2.5 transition w-full overflow-hidden">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-bold text-xs text-slate-900 truncate max-w-[190px] sm:max-w-[260px]">${p.name}</span>
+                ${isCurrent ? '<span class="bg-emerald-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0">Activo</span>' : ''}
+              </div>
+              <div class="text-[11px] text-slate-500 mt-0.5 truncate">${p.institution} · ${p.members.length} miembros</div>
+              <div class="text-[10px] text-emerald-700 font-semibold mt-0.5 truncate">📅 ${p.deadlineDateString}</div>
+            </div>
+            ${isCurrent ? '<span class="text-emerald-600 font-black text-sm flex-shrink-0 px-2">✓</span>' : '<span class="text-[11px] text-slate-500 font-semibold flex-shrink-0 px-2 py-1 bg-slate-100 hover:bg-emerald-100 hover:text-emerald-700 rounded-lg transition">Elegir</span>'}
+          </div>
+        `;
+      });
+
+      list.innerHTML = html;
+      document.getElementById('modal-project-picker').classList.remove('hidden');
+    }
+
+    function closeProjectModal() {
+      document.getElementById('modal-project-picker').classList.add('hidden');
+    }
+
+    function selectProject(projectName) {
+      if (!projectsData[projectName]) return;
+      currentProjectKey = projectName;
+      closeProjectModal();
+      loadActiveProject();
+      showToast(`Cambiado al proyecto: ${projectName}`, "📁");
+    }
+
+    // LOAD AND RENDER ACTIVE PROJECT
+    function loadActiveProject() {
+      const p = getProject();
+
+      // Header labels (both desktop and mobile!)
+      const actDesktop = document.getElementById('active-project-name');
+      if (actDesktop) actDesktop.innerText = p.name;
+      const actMobile = document.getElementById('active-project-name-mobile');
+      if (actMobile) actMobile.innerText = p.name;
+
+      const projTitle = document.getElementById('proj-title');
+      if (projTitle) projTitle.innerText = p.name;
+      const projInst = document.getElementById('proj-badge-institution');
+      if (projInst) projInst.innerText = p.institution;
+      const projProf = document.getElementById('proj-professor');
+      if (projProf) projProf.innerText = p.professor;
+      const projMem = document.getElementById('proj-member-count');
+      if (projMem) projMem.innerText = `👥 ${p.members.length} Integrantes sincronizados`;
+      const projDl = document.getElementById('proj-deadline-string');
+      if (projDl) projDl.innerText = `📅 Entrega: ${p.deadlineDateString}`;
+
+      // Start countdown
+      setupCountdown(p.deadlineDays);
+
+      // Render components
+      recalculateMetrics();
+      renderDashboardTasks();
+      renderTeamMembers();
+      renderAllTasks();
+      renderContributionsTab();
+      renderSmartSlots();
+      renderWeeklyScheduleTable();
+      updateModoOcupadoUI();
+      populateModalSelects();
+    }
+
+    // COUNTDOWN TIMER LOGIC (Clean, responsive, never breaks)
+    function setupCountdown(daysRemaining) {
+      if (countdownInterval) clearInterval(countdownInterval);
+
+      // Set target to now + daysRemaining
+      const targetTime = new Date().getTime() + (daysRemaining * 24 * 60 * 60 * 1000);
+
+      function tick() {
+        const now = new Date().getTime();
+        const diff = targetTime - now;
+
+        if (diff <= 0) {
+          document.getElementById('cd-days').innerText = "00";
+          document.getElementById('cd-hours').innerText = "00";
+          document.getElementById('cd-mins').innerText = "00";
+          document.getElementById('cd-secs').innerText = "00";
+          return;
+        }
+
+        const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+        const pad = (n) => String(n).padStart(2, '0');
+        document.getElementById('cd-days').innerText = pad(d);
+        document.getElementById('cd-hours').innerText = pad(h);
+        document.getElementById('cd-mins').innerText = pad(m);
+        document.getElementById('cd-secs').innerText = pad(s);
+      }
+
+      tick();
+      countdownInterval = setInterval(tick, 1000);
+    }
+
+    // RECALCULATE OVERALL PROGRESS & PREDICTIVE RISK TRAFFIC LIGHT
+    function recalculateMetrics() {
+      const p = getProject();
+      const total = p.tasks.length;
+      const completed = p.tasks.filter(t => t.completed).length;
+      const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+      // Update progress bar
+      const bar = document.getElementById('main-progress-bar');
+      const label = document.getElementById('progress-percentage-label');
+      if (bar) bar.style.width = `${pct}%`;
+      if (label) label.innerText = `${pct}% completado (${completed} de ${total} micro-entregas)`;
+
+      // Pending badge
+      const pendingCount = total - completed;
+      const pendingBadge = document.getElementById('badge-pending-tasks');
+      if (pendingBadge) pendingBadge.innerText = `${pendingCount} Pendientes`;
+
+      // Risk algorithm
+      const hasDelayed = p.tasks.some(t => !t.completed && t.delayed);
+      const blockedTasks = p.tasks.filter(t => {
+        if (t.completed || !t.dependsOn) return false;
+        const parent = p.tasks.find(pt => pt.title === t.dependsOn);
+        return parent && !parent.completed;
+      });
+
+      const lightRed = document.getElementById('light-red');
+      const lightYellow = document.getElementById('light-yellow');
+      const lightGreen = document.getElementById('light-green');
+      const riskTitle = document.getElementById('risk-status-title');
+      const riskDesc = document.getElementById('risk-status-desc');
+
+      if (!lightRed || !lightYellow || !lightGreen) return;
+
+      // Reset
+      lightRed.className = "w-3.5 h-3.5 rounded-full bg-rose-500/20 border border-rose-500/30";
+      lightYellow.className = "w-3.5 h-3.5 rounded-full bg-amber-400/20 border border-amber-400/30";
+      lightGreen.className = "w-3.5 h-3.5 rounded-full bg-emerald-500/20 border border-emerald-500/30";
+
+      if (pct >= 85) {
+        // Low risk
+        lightGreen.className = "w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/60";
+        riskTitle.innerText = "Riesgo Bajo (Al Día)";
+        riskTitle.className = "font-bold text-emerald-700 text-sm";
+        riskDesc.className = "text-xs text-slate-600 mt-2 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200/60";
+        riskDesc.innerHTML = "✅ <b>Excelente:</b> El ritmo de micro-entregas asegura cumplir con el deadline.";
+      } else if (hasDelayed || blockedTasks.length > 0) {
+        // Moderate or high risk
+        if (blockedTasks.length >= 2 || pendingCount > 6) {
+          lightRed.className = "w-3.5 h-3.5 rounded-full bg-rose-500 shadow-lg shadow-rose-500/60";
+          riskTitle.innerText = "Riesgo Alto";
+          riskTitle.className = "font-bold text-rose-700 text-sm";
+          riskDesc.className = "text-xs text-slate-600 mt-2 bg-rose-50 p-2.5 rounded-xl border border-rose-200/60";
+          riskDesc.innerHTML = `🚨 <b>Atención:</b> Hay ${blockedTasks.length} entregas críticas bloqueadas por tareas previas.`;
+        } else {
+          lightYellow.className = "w-3.5 h-3.5 rounded-full bg-amber-400 shadow-lg shadow-amber-400/60";
+          riskTitle.innerText = "Riesgo Moderado";
+          riskTitle.className = "font-bold text-amber-700 text-sm";
+          riskDesc.className = "text-xs text-slate-600 mt-2 bg-amber-50 p-2.5 rounded-xl border border-amber-200/60";
+          riskDesc.innerHTML = `⚠️ <b>Alerta:</b> La tarea <i>"Modelo Financiero"</i> está demorada y bloquea a <i>"Prototipo MVP"</i>.`;
+        }
+      } else {
+        lightGreen.className = "w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/60";
+        riskTitle.innerText = "Riesgo Bajo (Al Día)";
+        riskTitle.className = "font-bold text-emerald-700 text-sm";
+        riskDesc.className = "text-xs text-slate-600 mt-2 bg-emerald-50 p-2.5 rounded-xl border border-emerald-200/60";
+        riskDesc.innerHTML = "✅ <b>Buen ritmo:</b> Todas las dependencias están desbloqueadas.";
+      }
+    }
+
+    // RENDER DASHBOARD USER'S TASKS
+    function renderDashboardTasks() {
+      const container = document.getElementById('dashboard-my-tasks-container');
+      if (!container) return;
+
+      const p = getProject();
+      const myTasks = p.tasks.filter(t => t.assignee.includes("Facundo"));
+
+      if (myTasks.length === 0) {
+        container.innerHTML = '<div class="text-xs text-slate-400 py-4 text-center">No tienes tareas asignadas en este proyecto.</div>';
+        return;
+      }
+
+      let html = '';
+      myTasks.forEach(task => {
+        const isBlocked = task.dependsOn && !task.completed && p.tasks.some(pt => pt.title === task.dependsOn && !pt.completed);
+
+        html += `
+          <div class="flex items-center justify-between p-3 rounded-xl border ${task.completed ? 'bg-slate-50 border-slate-200 opacity-60' : isBlocked ? 'bg-amber-50/70 border-amber-200' : 'bg-white border-slate-200 hover:border-emerald-300'} transition">
+            <div class="flex items-center gap-3">
+              <input type="checkbox" onchange="toggleTask(${task.id})" ${task.completed ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer">
+              <div>
+                <div class="text-xs font-semibold ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}">
+                  ${task.title}
+                </div>
+                <div class="flex flex-wrap items-center gap-2 mt-0.5 text-[11px]">
+                  <span class="text-slate-500">📅 ${task.due}</span>
+                  ${task.dependsOn ? `
+                    <span class="${isBlocked ? 'text-amber-700 font-semibold' : 'text-slate-400'}">
+                      🔗 ${isBlocked ? 'Bloqueada por: ' + task.dependsOn : 'Dependencia OK'}
+                    </span>
+                  ` : ''}
+                </div>
+              </div>
+            </div>
+            <div>
+              ${task.completed ? 
+                '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">Listo</span>' : 
+                isBlocked ? 
+                '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">En espera</span>' : 
+                '<span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-800">Prioridad</span>'
+              }
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    // RENDER TEAM MEMBERS LIST & AVATARS
+    function renderTeamMembers() {
+      const p = getProject();
+      const container = document.getElementById('team-members-status-list');
+      const avatarContainer = document.getElementById('dash-avatars-row');
+
+      if (container) {
+        let html = '';
+        p.members.forEach(m => {
+          const isBusy = m.status.toLowerCase().includes("ocupado");
+          html += `
+            <div class="flex items-center justify-between text-xs">
+              <div class="flex items-center gap-2.5">
+                <div class="w-7 h-7 rounded-full ${m.color} text-white font-bold flex items-center justify-center text-[10px] flex-shrink-0">
+                  ${m.short}
+                </div>
+                <div>
+                  <div class="font-semibold text-slate-800 leading-tight">${m.name}</div>
+                  <div class="text-[10px] text-slate-400">${m.role}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${isBusy ? 'bg-rose-100 text-rose-700' : 'bg-emerald-100 text-emerald-800'}">
+                  <span class="w-1.5 h-1.5 rounded-full ${isBusy ? 'bg-rose-500' : 'bg-emerald-500'} mr-1"></span>
+                  ${m.status}
+                </span>
+              </div>
+            </div>
+          `;
+        });
+        container.innerHTML = html;
+      }
+
+      if (avatarContainer) {
+        let avHtml = '';
+        p.members.forEach(m => {
+          avHtml += `<span class="inline-block h-7 w-7 rounded-full ring-2 ring-white ${m.color} text-[10px] text-white font-bold flex items-center justify-center" title="${m.name}">${m.short}</span>`;
+        });
+        avatarContainer.innerHTML = avHtml;
+      }
+    }
+
+    // RENDER WEEKLY SCHEDULE TABLE (ONLY 3 REQUIRED STATES: TODOS LIBRES, ALGUNOS OCUPADOS, OCUPADO)
+    function renderWeeklyScheduleTable() {
+      const tbody = document.getElementById('weekly-schedule-body');
+      if (!tbody) return;
+
+      const p = getProject();
+      const times = [
+        '08:00 - 10:00',
+        '10:00 - 12:00',
+        '14:00 - 16:00',
+        '16:00 - 18:00',
+        '18:00 - 20:00',
+        '20:00 - 22:00'
+      ];
+
+      const grid = p.scheduleGrid;
+      let html = '';
+
+      times.forEach((time, rowIdx) => {
+        html += `<tr><td class="p-2.5 text-left font-medium text-slate-600">${time}</td>`;
+
+        for (let colIdx = 0; colIdx < 6; colIdx++) {
+          const stateVal = grid[rowIdx] ? grid[rowIdx][colIdx] : 0;
+          const isThursday = (colIdx === 3);
+
+          if (stateVal === 2) {
+            // TODOS LIBRES (VERDE)
+            html += `
+              <td class="p-2 ${isThursday ? 'border-x border-emerald-200' : ''}">
+                <button type="button" onclick="scheduleMeeting('${time} (${getDayName(colIdx)})')" class="w-full py-1.5 px-2 rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 font-bold border border-emerald-300 transition text-[11px] shadow-sm">
+                  Todos libres
+                </button>
+              </td>
+            `;
+          } else if (stateVal === 1) {
+            // ALGUNOS OCUPADOS (AMARILLO)
+            html += `
+              <td class="p-2 ${isThursday ? 'border-x border-emerald-100' : ''}">
+                <span class="inline-block w-full py-1.5 px-2 rounded-lg bg-amber-100 text-amber-800 font-semibold border border-amber-300 text-[11px]">
+                  Algunos ocupados
+                </span>
+              </td>
+            `;
+          } else {
+            // OCUPADO (GRIS)
+            html += `
+              <td class="p-2 ${isThursday ? 'border-x border-emerald-100' : ''}">
+                <span class="inline-block w-full py-1.5 px-2 rounded-lg bg-slate-100 text-slate-400 font-medium border border-slate-200 text-[11px]">
+                  Ocupado
+                </span>
+              </td>
+            `;
+          }
+        }
+
+        html += `</tr>`;
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    function getDayName(idx) {
+      const names = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+      return names[idx] || 'Día';
+    }
+
+    // RENDER SMART SLOTS CARDS DYNAMICALLY
+    function renderSmartSlots() {
+      const container = document.getElementById('smart-slots-container');
+      if (!container) return;
+
+      const slots = getDynamicSmartSlots();
+      let html = '';
+
+      slots.forEach(slot => {
+        html += `
+          <div class="bg-gradient-to-b from-slate-50 to-white border ${slot.badge === 'Recomendado' ? 'border-2 border-emerald-400 shadow-sm' : 'border-slate-200'} rounded-2xl p-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-slate-700">${slot.dayTitle}</span>
+                <span class="${slot.badgeClass} text-[10px] font-bold px-2 py-0.5 rounded-full uppercase">${slot.badge}</span>
+              </div>
+              <div class="text-xl font-black text-slate-900 mt-2">${slot.hours}</div>
+              <div class="inline-block text-xs font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded mt-1 border border-emerald-200">
+                ${slot.statusText}
+              </div>
+              <p class="text-xs text-slate-600 mt-2">${slot.desc}</p>
+            </div>
+            <button onclick="scheduleMeeting('${slot.dayTitle} ${slot.hours}')" class="mt-4 w-full py-2 ${slot.buttonClass} rounded-xl text-xs font-bold shadow-sm transition flex items-center justify-center gap-1.5">
+              <span>${slot.buttonText}</span>
+            </button>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+
+      // Also update Dashboard suggested slot
+      const topSlot = slots[0];
+      const slotTimeEl = document.getElementById('dash-suggested-slot-time');
+      const slotDescEl = document.getElementById('dash-suggested-slot-desc');
+      if (slotTimeEl) slotTimeEl.innerText = `${topSlot.dayTitle} · ${topSlot.hours}`;
+      if (slotDescEl) slotDescEl.innerText = topSlot.desc;
+    }
+
+    // RENDER ALL TASKS WITH PHASES & DEPENDENCIES
+    function renderAllTasks() {
+      const container = document.getElementById('all-tasks-list-container');
+      if (!container) return;
+
+      const p = getProject();
+      let filtered = p.tasks;
+
+      if (activeFilter === 'pending') filtered = p.tasks.filter(t => !t.completed);
+      else if (activeFilter === 'mine') filtered = p.tasks.filter(t => t.assignee.includes("Facundo"));
+      else if (activeFilter === 'completed') filtered = p.tasks.filter(t => t.completed);
+
+      const phases = [...new Set(filtered.map(t => t.phase))];
+
+      if (phases.length === 0) {
+        container.innerHTML = '<div class="text-center py-8 text-xs text-slate-400">No hay tareas para este filtro.</div>';
+        return;
+      }
+
+      let html = '';
+      phases.forEach(ph => {
+        const phTasks = filtered.filter(t => t.phase === ph);
+        html += `
+          <div class="border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <div class="bg-slate-50 px-4 py-3 font-bold text-xs text-slate-700 flex items-center justify-between border-b border-slate-200">
+              <span>${ph}</span>
+              <span class="text-[11px] text-slate-500 font-normal">${phTasks.filter(t => t.completed).length}/${phTasks.length} listas</span>
+            </div>
+            <div class="divide-y divide-slate-100 p-2 space-y-1">
+        `;
+
+        phTasks.forEach(task => {
+          const isBlocked = task.dependsOn && !task.completed && p.tasks.some(pt => pt.title === task.dependsOn && !pt.completed);
+
+          html += `
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition gap-2">
+              <div class="flex items-center gap-3">
+                <input type="checkbox" onchange="toggleTask(${task.id})" ${task.completed ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer">
+                <div>
+                  <div class="text-xs font-semibold ${task.completed ? 'line-through text-slate-400' : 'text-slate-800'}">
+                    ${task.title}
+                  </div>
+                  <div class="flex flex-wrap items-center gap-2 mt-0.5 text-[11px] text-slate-500">
+                    <span class="flex items-center gap-1 font-medium text-slate-700">
+                      👤 ${task.assignee}
+                    </span>
+                    <span>•</span>
+                    <span>📅 ${task.due}</span>
+                    ${task.dependsOn ? `
+                      <span>•</span>
+                      <span class="${isBlocked ? 'text-amber-700 font-bold bg-amber-50 px-1.5 py-0.5 rounded' : 'text-slate-400'}">
+                        🔗 Depende de: ${task.dependsOn}
+                      </span>
+                    ` : ''}
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 ml-7 sm:ml-0">
+                ${task.delayed && !task.completed ? 
+                  '<span class="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded">Demorada</span>' : ''
+                }
+                ${isBlocked ? 
+                  '<span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded">Bloqueada</span>' : ''
+                }
+                <button onclick="toggleTask(${task.id})" class="text-xs font-semibold px-2.5 py-1 rounded-xl border ${task.completed ? 'border-slate-300 text-slate-600 hover:bg-slate-100' : 'border-emerald-500 text-emerald-700 hover:bg-emerald-50'}">
+                  ${task.completed ? 'Reabrir' : 'Completar'}
+                </button>
+              </div>
+            </div>
+          `;
+        });
+
+        html += `
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function filterTasks(f) {
+      activeFilter = f;
+      ['all', 'pending', 'mine', 'completed'].forEach(id => {
+        const btn = document.getElementById(`filter-${id}`);
+        if (btn) {
+          if (id === f) {
+            btn.className = "filter-chip px-3 py-1 rounded-full bg-brand-navy text-white font-semibold";
+          } else {
+            btn.className = "filter-chip px-3 py-1 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200";
+          }
+        }
+      });
+      renderAllTasks();
+    }
+
+    function toggleTask(id) {
+      const p = getProject();
+      const task = p.tasks.find(t => t.id === id);
+      if (!task) return;
+
+      task.completed = !task.completed;
+      if (task.completed) {
+        task.delayed = false;
+        showToast(`Micro-entrega completada: "${task.title}"`, "🎉");
+
+        // Increase assigned member completed task count
+        const member = p.members.find(m => m.name === task.assignee);
+        if (member) member.tasksCompleted += 1;
+      } else {
+        const member = p.members.find(m => m.name === task.assignee);
+        if (member && member.tasksCompleted > 0) member.tasksCompleted -= 1;
+      }
+
+      recalculateMetrics();
+      renderDashboardTasks();
+      renderAllTasks();
+      renderContributionsTab();
+    }
+
+    // RENDER CONTRIBUTIONS TAB (CALCULATED DIRECTLY FROM JS OBJECTS & EDITABLE)
+    function renderContributionsTab() {
+      const p = getProject();
+      const members = calculateContributions();
+
+      // Update KPI Cards
+      let totalHours = 0, totalFiles = 0, totalTasks = 0;
+      members.forEach(m => {
+        totalHours += m.hoursLogged;
+        totalFiles += m.filesUploaded;
+        totalTasks += m.tasksCompleted;
+      });
+
+      const totalHoursEl = document.getElementById('stat-total-hours');
+      const totalFilesEl = document.getElementById('stat-total-files');
+      const totalTasksEl = document.getElementById('stat-total-tasks');
+      const equityPctEl = document.getElementById('stat-equity-pct');
+
+      if (totalHoursEl) totalHoursEl.innerText = `${totalHours} hs`;
+      if (totalFilesEl) totalFilesEl.innerText = `${totalFiles}`;
+      if (totalTasksEl) totalTasksEl.innerText = `${totalTasks}`;
+      if (equityPctEl) equityPctEl.innerText = `92%`;
+
+      const idealPct = (100 / members.length).toFixed(1);
+      const idealLabel = document.getElementById('ideal-equity-label');
+      if (idealLabel) idealLabel.innerText = `Ideal equitativo: ~${idealPct}% c/u`;
+
+      // Render Progress Bars
+      const barsContainer = document.getElementById('contribution-bars-list');
+      if (barsContainer) {
+        let html = '';
+        members.forEach(m => {
+          const isWarning = m.contributionPct < 10;
+          html += `
+            <div class="space-y-1">
+              <div class="flex items-center justify-between text-xs">
+                <span class="font-semibold text-slate-800 flex items-center gap-1.5">
+                  <span class="w-2.5 h-2.5 rounded-full ${m.color}"></span>
+                  ${m.name}
+                  ${isWarning ? '<span class="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.2 rounded font-bold">⚠️ Alerta Baja Actividad</span>' : ''}
+                </span>
+                <span class="font-bold text-slate-700">${m.contributionPct}% del aporte total</span>
+              </div>
+              <div class="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                <div class="h-full ${isWarning ? 'bg-amber-400' : 'bg-emerald-500'} rounded-full transition-all duration-500" style="width: ${m.contributionPct}%;"></div>
+              </div>
+            </div>
+          `;
+        });
+        barsContainer.innerHTML = html;
+      }
+
+      // Render Metrics Table with Action Buttons
+      const tableBody = document.getElementById('contribution-details-table-body');
+      if (tableBody) {
+        let tHtml = '';
+        members.forEach(m => {
+          tHtml += `
+            <tr class="hover:bg-slate-50 transition">
+              <td class="p-2.5 font-semibold text-slate-800 flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full ${m.color}"></span>
+                ${m.name}
+              </td>
+              <td class="p-2.5 text-center font-mono font-medium">${m.tasksCompleted}</td>
+              <td class="p-2.5 text-center font-mono font-medium">${m.filesUploaded}</td>
+              <td class="p-2.5 text-center font-mono font-medium">${m.reviewsDone}</td>
+              <td class="p-2.5 text-center font-mono font-medium">${m.hoursLogged} hs</td>
+              <td class="p-2.5 text-center font-bold text-emerald-700 font-mono">${m.contributionPct}%</td>
+              <td class="p-2.5 text-right">
+                <button onclick="addQuickContribution('${m.name}')" class="px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-300 text-[10px] font-bold transition">
+                  +1 Archivo / Aporte
+                </button>
+              </td>
+            </tr>
+          `;
+        });
+        tableBody.innerHTML = tHtml;
+      }
+
+      // Render Evidences Feed
+      const feedContainer = document.getElementById('evidence-feed-list');
+      const countLabel = document.getElementById('evidence-count-label');
+      if (feedContainer) {
+        let feedHtml = '';
+        p.evidences.forEach(ev => {
+          feedHtml += `
+            <div class="flex items-start gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+              <div class="p-1.5 bg-emerald-100 text-emerald-700 rounded-lg font-bold text-sm">
+                📎
+              </div>
+              <div class="flex-1">
+                <div class="flex items-center justify-between">
+                  <span class="font-bold text-slate-800">${ev.author}</span>
+                  <span class="text-[10px] text-slate-400">${ev.time}</span>
+                </div>
+                <p class="text-slate-600 mt-0.5">${ev.desc}</p>
+                <span class="inline-block mt-1 text-[10px] font-semibold text-slate-500 bg-white border border-slate-200 px-2 py-0.5 rounded">
+                  ${ev.type}
+                </span>
+              </div>
+            </div>
+          `;
+        });
+        feedContainer.innerHTML = feedHtml;
+        if (countLabel) countLabel.innerText = `(${p.evidences.length} evidencias registradas)`;
+      }
+    }
+
+    // Quick add contribution to simulate modifications in live presentation
+    function addQuickContribution(memberName) {
+      const p = getProject();
+      const m = p.members.find(mem => mem.name === memberName);
+      if (m) {
+        m.filesUploaded += 1;
+        m.hoursLogged += 3;
+        p.evidences.unshift({
+          id: Date.now(),
+          author: memberName,
+          type: "Archivo / Documento",
+          desc: "Aporte de avance registrado y verificado",
+          time: "Justo ahora"
+        });
+        renderContributionsTab();
+        showToast(`Aporte registrado para ${memberName}. Porcentajes actualizados.`, "📈");
+      }
+    }
+
+    // MODO OCUPADO FUNCTIONALITY (TOTALMENTE FUNCIONAL)
+    function openModoOcupadoModal() {
+      const statusBox = document.getElementById('modo-ocupado-current-status-box');
+      const formInputs = document.getElementById('modo-ocupado-form-inputs');
+      const actions = document.getElementById('modo-ocupado-modal-actions');
+      const title = document.getElementById('modo-ocupado-modal-title');
+
+      if (isModoOcupadoActive) {
+        title.innerText = "Modo 'Ocupado' (Activo actualmente)";
+        statusBox.className = "p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900";
+        statusBox.innerHTML = `
+          <div class="font-bold flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span>
+            Estás marcado como OCUPADO (${modoOcupadoDuration})
+          </div>
+          <div class="mt-1 text-slate-600">Tus compañeros ven tu estado como no disponible para evitar coordinar reuniones en este lapso.</div>
+        `;
+        formInputs.classList.add('hidden');
+        actions.innerHTML = `
+          <button type="button" onclick="closeModoOcupadoModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Cerrar</button>
+          <button type="button" onclick="deactivateModoOcupado()" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 shadow transition">
+            🟢 Desactivar y Estar Libre
+          </button>
+        `;
+      } else {
+        title.innerText = "Activar Modo 'Ocupado'";
+        statusBox.className = "p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-700";
+        statusBox.innerHTML = `
+          <div class="font-bold text-slate-800">Estado actual: 🟢 Libre</div>
+          <div class="text-slate-500">Al activarlo, se informará automáticamente que no estás disponible sin revelar tus citas personales.</div>
+        `;
+        formInputs.classList.remove('hidden');
+        actions.innerHTML = `
+          <button type="button" onclick="closeModoOcupadoModal()" class="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100">Cancelar</button>
+          <button type="button" onclick="activateModoOcupado()" class="px-4 py-2 rounded-xl text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 shadow transition">
+            🔴 Confirmar y Notificar Grupo
+          </button>
+        `;
+      }
+
+      document.getElementById('modal-modo-ocupado').classList.remove('hidden');
+    }
+
+    function closeModoOcupadoModal() {
+      document.getElementById('modal-modo-ocupado').classList.add('hidden');
+    }
+
+    function selectDuration(btn, dur) {
+      document.querySelectorAll('.duration-btn').forEach(b => {
+        b.classList.remove('active', 'bg-emerald-50', 'border-emerald-500', 'text-emerald-800');
+      });
+      btn.classList.add('active', 'bg-emerald-50', 'border-emerald-500', 'text-emerald-800');
+      modoOcupadoDuration = dur;
+    }
+
+    function activateModoOcupado() {
+      isModoOcupadoActive = true;
+      const p = getProject();
+      const me = p.members.find(m => m.name.includes("Facundo"));
+      if (me) {
+        me.status = `Ocupado (${modoOcupadoDuration})`;
+      }
+
+      updateModoOcupadoUI();
+      renderTeamMembers();
+      closeModoOcupadoModal();
+      showToast(`Modo Ocupado ACTIVADO (${modoOcupadoDuration}). Se notificó a tus compañeros.`, "🔴");
+    }
+
+    function deactivateModoOcupado() {
+      isModoOcupadoActive = false;
+      const p = getProject();
+      const me = p.members.find(m => m.name.includes("Facundo"));
+      if (me) {
+        me.status = "Libre";
+      }
+
+      updateModoOcupadoUI();
+      renderTeamMembers();
+      closeModoOcupadoModal();
+      showToast("Modo Ocupado DESACTIVADO. Vuelves a estar disponible.", "🟢");
+    }
+
+    function updateModoOcupadoUI() {
+      const btn = document.getElementById('btn-modo-ocupado');
+      const text = document.getElementById('modo-ocupado-text');
+      const dot = document.getElementById('modo-ocupado-dot');
+      const mDot = document.getElementById('mobile-nav-ocupado-dot');
+      const mLabel = document.getElementById('mobile-nav-ocupado-label');
+
+      if (isModoOcupadoActive) {
+        if (btn) {
+          btn.classList.remove('from-amber-500', 'to-rose-600');
+          btn.classList.add('from-rose-600', 'to-rose-800');
+        }
+        if (text) text.innerHTML = "🔴 Ocupado";
+        if (dot) dot.classList.add('bg-amber-300');
+        if (mLabel) mLabel.innerText = "¡Ocupado!";
+        if (mDot) mDot.innerText = "🔴";
+      } else {
+        if (btn) {
+          btn.classList.add('from-amber-500', 'to-rose-600');
+          btn.classList.remove('from-rose-600', 'to-rose-800');
+        }
+        if (text) text.innerHTML = '<span class="hidden sm:inline">Modo </span>Ocupado';
+        if (dot) dot.classList.remove('bg-amber-300');
+        if (mLabel) mLabel.innerText = "Ocupado";
+        if (mDot) mDot.innerText = "⚪";
+      }
+    }
+
+    // Schedule Meeting Functionality
+    function scheduleMeeting(slotName) {
+      showToast(`¡Reunión programada para: ${slotName}! Se sincronizó con Google Calendar y se avisó al grupo.`, "📅");
+      setTimeout(() => {
+        switchTab('dashboard');
+      }, 700);
+    }
+
+    function simulateCalendarRefresh() {
+      const icon = document.getElementById('sync-spin-icon');
+      if (icon) icon.classList.add('animate-spin');
+      setTimeout(() => {
+        if (icon) icon.classList.remove('animate-spin');
+        showToast("Calendarios actualizados con Google Calendar API (v3)", "🔄");
+      }, 800);
+    }
+
+    // Populate Modal Dropdowns
+    function populateModalSelects() {
+      const p = getProject();
+      const taskAssignee = document.getElementById('task-assignee-input');
+      const evAuthor = document.getElementById('evidence-author-input');
+      const depSelect = document.getElementById('task-dep-input');
+
+      if (taskAssignee) {
+        taskAssignee.innerHTML = p.members.map(m => `<option value="${m.name}">${m.name} ${m.name.includes("Facundo") ? '(Vos)' : ''}</option>`).join('');
+      }
+      if (evAuthor) {
+        evAuthor.innerHTML = p.members.map(m => `<option value="${m.name}">${m.name} ${m.name.includes("Facundo") ? '(Vos)' : ''}</option>`).join('');
+      }
+      if (depSelect) {
+        let dHtml = '<option value="none">Sin dependencias (Comienza de inmediato)</option>';
+        p.tasks.forEach(t => {
+          dHtml += `<option value="${t.title}">${t.title}</option>`;
+        });
+        depSelect.innerHTML = dHtml;
+      }
+    }
+
+    // New Task Modal
+    function openNewTaskModal() {
+      populateModalSelects();
+      document.getElementById('modal-new-task').classList.remove('hidden');
+    }
+    function closeNewTaskModal() {
+      document.getElementById('modal-new-task').classList.add('hidden');
+    }
+    function saveNewTask() {
+      const title = document.getElementById('task-title-input').value.trim();
+      if (!title) {
+        alert("Por favor ingresa un título para la micro-entrega.");
+        return;
+      }
+
+      const p = getProject();
+      const assignee = document.getElementById('task-assignee-input').value;
+      const due = document.getElementById('task-due-input').value || "En 4 días";
+      const dep = document.getElementById('task-dep-input').value;
+      const phase = document.getElementById('task-phase-input').value || "Fase 2: Informe y Modelo";
+
+      p.tasks.push({
+        id: Date.now(),
+        phase: phase,
+        title: title,
+        assignee: assignee,
+        due: due,
+        completed: false,
+        delayed: false,
+        dependsOn: dep === 'none' ? null : dep
+      });
+
+      closeNewTaskModal();
+      recalculateMetrics();
+      renderDashboardTasks();
+      renderAllTasks();
+      showToast(`Micro-entrega "${title}" creada y asignada a ${assignee}`, "📝");
+    }
+
+    // Upload Evidence Modal
+    function openUploadEvidenceModal() {
+      populateModalSelects();
+      document.getElementById('modal-upload-evidence').classList.remove('hidden');
+    }
+    function closeUploadEvidenceModal() {
+      document.getElementById('modal-upload-evidence').classList.add('hidden');
+    }
+    function saveEvidence() {
+      const author = document.getElementById('evidence-author-input').value;
+      const type = document.getElementById('evidence-type-input').value;
+      const desc = document.getElementById('evidence-desc-input').value || "Aporte verificado al trabajo práctico";
+
+      const p = getProject();
+      p.evidences.unshift({
+        id: Date.now(),
+        author: author,
+        type: type,
+        desc: desc,
+        time: "Justo ahora"
+      });
+
+      const mem = p.members.find(m => m.name === author);
+      if (mem) {
+        mem.filesUploaded += 1;
+        mem.hoursLogged += 2;
+      }
+
+      closeUploadEvidenceModal();
+      renderContributionsTab();
+      showToast("Evidencia registrada de forma inmutable.", "🛡️");
+    }
+
+    // Export Teacher Report
+    function exportTeacherReport() {
+      const p = getProject();
+      showToast(`Generando reporte de auditoría académica para ${p.professor}...`, "📄");
+      setTimeout(() => {
+        alert(`📄 Reporte generado: 'SyncStudy_Auditoria_${p.name.replace(/\\s+/g, '_')}.pdf'\\n\\nMétricas:\\n- Cumplimiento de deadlines: 92%\\n- Equidad en aportes: Equilibrada\\n- Integrantes auditados: ${p.members.length}\\n- Evidencias registradas: ${p.evidences.length}\\n- Cruce de calendarios: 100% verificado.`);
+      }, 700);
+    }
+
+    // Onboarding Modal Flow
+    let currentObStep = 1;
+    function openOnboardingModal() {
+      currentObStep = 1;
+      updateOnboardingUI();
+      document.getElementById('modal-onboarding').classList.remove('hidden');
+    }
+    function closeOnboardingModal() {
+      document.getElementById('modal-onboarding').classList.add('hidden');
+    }
+
+    function updateOnboardingUI() {
+      document.getElementById('onboarding-step-1').classList.toggle('hidden', currentObStep !== 1);
+      document.getElementById('onboarding-step-2').classList.toggle('hidden', currentObStep !== 2);
+      document.getElementById('onboarding-step-3').classList.toggle('hidden', currentObStep !== 3);
+
+      document.getElementById('ob-btn-back').classList.toggle('hidden', currentObStep === 1);
+      
+      const nextBtn = document.getElementById('ob-btn-next');
+      if (currentObStep === 3) {
+        nextBtn.innerText = "Comenzar a usar SyncStudy ✨";
+      } else {
+        nextBtn.innerText = "Siguiente Paso →";
+      }
+
+      for (let i = 1; i <= 3; i++) {
+        const num = document.getElementById(`step-num-${i}`);
+        if (i <= currentObStep) {
+          num.className = "w-6 h-6 rounded-full bg-emerald-600 text-white text-xs font-bold flex items-center justify-center";
+        } else {
+          num.className = "w-6 h-6 rounded-full bg-slate-200 text-slate-600 text-xs font-bold flex items-center justify-center";
+        }
+      }
+    }
+
+    function nextOnboardingStep() {
+      if (currentObStep < 3) {
+        currentObStep++;
+        updateOnboardingUI();
+      } else {
+        closeOnboardingModal();
+        showToast("¡Proyecto configurado exitosamente!", "🚀");
+      }
+    }
+
+    function prevOnboardingStep() {
+      if (currentObStep > 1) {
+        currentObStep--;
+        updateOnboardingUI();
+      }
+    }
+
+    function finishOnboardingWithGoogle() {
+      closeOnboardingModal();
+      showToast("Google Calendar vinculado con éxito (OAuth 2.0)", "🟢");
+    }
+
+    function finishOnboardingManual() {
+      closeOnboardingModal();
+      switchTab('availability');
+      showToast("Modo Carga Manual habilitado.", "ℹ️");
+    }
+
+    // Manual Availability Interactive Grid
+    function setupManualGrid() {
+      const container = document.getElementById('interactive-manual-grid');
+      if (!container) return;
+
+      const days = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+      let html = '';
+
+      days.forEach(d => {
+        html += `<div class="font-bold text-slate-600 bg-slate-100 p-1.5 rounded-lg text-xs">${d}</div>`;
+      });
+
+      const times = ['08-12hs', '14-16hs', '18-20hs', '20-22hs'];
+      for (let t = 0; t < times.length; t++) {
+        for (let d = 0; d < 6; d++) {
+          const isBusyDefault = (d === 3 && t === 0);
+          html += `
+            <div class="grid-slot p-2 rounded-xl border text-[11px] font-mono cursor-pointer ${isBusyDefault ? 'busy' : 'free'}" onclick="toggleGridSlot(this)">
+              <div class="font-bold">${times[t]}</div>
+              <div class="slot-status-text">${isBusyDefault ? 'Ocupado' : 'Libre'}</div>
+            </div>
+          `;
+        }
+      }
+
+      container.innerHTML = html;
+    }
+
+    function toggleGridSlot(el) {
+      if (el.classList.contains('free')) {
+        el.classList.remove('free');
+        el.classList.add('busy');
+        el.querySelector('.slot-status-text').innerText = 'Ocupado';
+      } else {
+        el.classList.remove('busy');
+        el.classList.add('free');
+        el.querySelector('.slot-status-text').innerText = 'Libre';
+      }
+    }
+
+    function saveManualAvailability() {
+      showToast("Disponibilidad manual guardada y sincronizada.", "💾");
+    }
+
+    // Toast helper
+    function showToast(message, icon = "✓") {
+      const toast = document.getElementById('toast');
+      const toastMsg = document.getElementById('toast-message');
+      const toastIcon = document.getElementById('toast-icon');
+
+      if (!toast) return;
+
+      toastMsg.innerText = message;
+      toastIcon.innerText = icon;
+
+      toast.classList.remove('translate-y-24', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-24', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3500);
+    }
+
+    function copyInviteCode() {
+      const p = getProject();
+      navigator.clipboard?.writeText(p.joinCode || "SYNC-FAIN-26");
+      showToast(`Código copiado: ${p.joinCode || "SYNC-FAIN-26"}`, "📋");
+    }
+
+    // INITIALIZATION
+    window.addEventListener('DOMContentLoaded', () => {
+      loadActiveProject();
+      setupManualGrid();
+    });
+  </script>
+</body>
+</html>
